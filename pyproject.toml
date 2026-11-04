@@ -1,0 +1,19 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "fabric-demo-accelerator"
+version = "0.1.0"
+description = "Gated, reproducible customer demo preparation for Microsoft Fabric IQ"
+requires-python = ">=3.11"
+dependencies = []
+
+[project.optional-dependencies]
+dev = ["nbformat>=5.10,<6"]
+
+[project.scripts]
+fabric-demo = "demo_accelerator.cli:main"
+
+[tool.setuptools.packages.find]
+include = ["demo_accelerator*"]
