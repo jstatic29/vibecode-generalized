@@ -166,7 +166,8 @@ def semantic_contract(config):
         if filters:
             expression = f"CALCULATE({expression}, {', '.join(f'KEEPFILTERS({f})' for f in filters)})"
         measures[metric["name"]] = {"label": metric["label"], "expression": expression,
-                                    "unit": metric["unit"], "interpretation": metric["interpretation"]}
+                                    "unit": metric["unit"], "interpretation": metric["interpretation"],
+                                    "format_string": "#,0.00" if agg == "avg" else "#,0"}
     for metric in proposal.get("derived_metrics", []):
         left, right = f"[{metric['left']}]", f"[{metric['right']}]"
         expression = (
@@ -239,7 +240,8 @@ def frame(name, rows):
 def predicate(filters):
     result = F.lit(True)
     for item in filters:
-        left, right, op = F.col(item["column"]), item["value"], item["op"]
+        left, op = F.col(item["column"]), item["op"]
+        right = F.col(item["other_column"]) if "other_column" in item else item["value"]
         if op == "eq": value = left == right
         elif op == "ne": value = left != right
         elif op == "gt": value = left > right
@@ -280,6 +282,8 @@ for definition in definitions:
         assert actual.select(definition["key"]).distinct().count() == actual.count(), f"Duplicate key: {name}"
     if definition.get("unique_by"):
         assert actual.select(*definition["unique_by"]).distinct().count() == actual.count(), f"Duplicate grain: {name}"
+    if definition.get("checks"):
+        assert actual.filter(~predicate(definition["checks"])).count() == 0, f"Row checks failed: {name}"
 for relation in expected["referential_integrity"]:
     missing = spark.table(f"{SCHEMA}.{relation['table']}").join(
         spark.table(f"{SCHEMA}.{relation['target']}").select(
@@ -318,7 +322,8 @@ for metric in config["proposal"]["metrics"]:
         if keys:
             function = F.count(F.lit(1)) if metric["aggregation"] == "count" else (
                 F.sum(metric["column"]) if metric["aggregation"] == "sum" else F.avg(metric["column"]))
-            observed = [r.asDict() for r in framed.groupBy(*keys).agg(function.alias(metric["name"])).collect()]
+            observed = [{k: v.isoformat() if isinstance(v, date) else v for k, v in r.asDict().items()}
+                        for r in framed.groupBy(*keys).agg(function.alias(metric["name"])).collect()]
             wanted = baseline["periods" if period else "groups"]
             assert sorted(observed, key=repr) == sorted(wanted, key=repr), f"Grouped metric mismatch: {metric['name']}"
 

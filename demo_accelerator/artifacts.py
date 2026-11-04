@@ -405,6 +405,8 @@ def operator_guide(config):
             "Review each table's purpose/grain/source, key relationships, transformation, row bound and "
             "metrics. Validate the physical-row budget, not an arbitrary table quota."
         )
+        if config["proposal"].get("reporting"):
+            design += " Reporting constraints: " + config["proposal"]["reporting"]["notes"]
         research = (
             "Use the customer website, audience and described sources to suggest 2-3 use cases in Chat. "
             "Recommend a use case and its synthetic schema; cite public sources, distinguish facts from "
@@ -464,7 +466,7 @@ The installed modeling MCP is for Fabric workspace models, not offline PBIP auth
 Build the contract's tables/relationships/measures through the supported route; export
 the verified definition for reuse. Do not hand-author TMDL when a supported MCP route works.
 List before create and never blindly retry a create. Preserve identity on updates.
-Reconcile DAX against expected.json, including quarter and region filters and money units.
+Reconcile DAX against expected.json, including declared period/business-key filters and money units.
 Validate credentials and a second viewer; stop on credential errors.
 
 ## 6. Optional Planning gate

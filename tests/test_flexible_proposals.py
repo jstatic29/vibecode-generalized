@@ -209,7 +209,7 @@ class BlueprintTests(unittest.TestCase):
         config = insurance()
         tables, expected = build_blueprint(config)
         raw = sum(len(tables[t["name"]]) for t in config["proposal"]["tables"] if t["layer"] == "bronze")
-        self.assertEqual(expected["physical_rows"], sum(map(len, tables.values())) + raw + 2 * len(tables) + 3)
+        self.assertEqual(expected["physical_rows"], sum(map(len, tables.values())) + raw + 2 * len(tables) + 2)
         config["scope"]["max_total_rows"] = expected["physical_rows"] - 1
         with self.assertRaisesRegex(DemoError, "workload upper bound"):
             validate(config)

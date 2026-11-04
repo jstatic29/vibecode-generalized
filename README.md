@@ -84,6 +84,13 @@ python -m demo_accelerator generate examples\insurance-claims.json --run-dir .de
 This example has 10 Delta tables because of its proposed design, not a 10-table
 rule. It is not researched or approved for a customer. It remains at the story gate.
 
+`examples\project-finance.json` is another fictional worked example: a contiguous
+calendar, project/category/month budgets, exactly allocated actual postings and
+consistent invoice balances. It includes grain-aware cost variance and ratios,
+an optional semantic model and app, but no Planning. Its 16-table design has
+14,701 physical rows including raw/staging copies and governance. It makes no
+claims about a customer's finance systems or performance.
+
 Legacy fixture generation remains available explicitly:
 
 ```powershell

@@ -23,7 +23,9 @@ def build_blueprint(config):
 
     def matches(row, filters):
         for item in filters:
-            left, right, op = row[item["column"]], item["value"], item["op"]
+            left = row[item["column"]]
+            right = row[item["other_column"]] if "other_column" in item else item["value"]
+            op = item["op"]
             if op == "eq":
                 good = left == right
             elif op == "ne":
@@ -159,6 +161,8 @@ def build_blueprint(config):
             unique = table.get("unique_by", [])
             if unique and len({tuple(r[c] for c in unique) for r in rows}) != len(rows):
                 raise ValueError(f"{name}: proposed unique_by grain is not unique")
+            if any(not matches(row, table.get("checks", [])) for row in rows):
+                raise ValueError(f"{name}: declared row checks failed")
             for row in rows:
                 for cname, spec in schemas[name].items():
                     if spec["type"] == "date":
@@ -222,11 +226,9 @@ def build_blueprint(config):
                       "complete": start <= quarter_start and end == next_quarter - timedelta(days=1)}
             for frequency, destination in (("month", periods), ("quarter", quarters)):
                 bucket = {}
-                period_rows = {}
                 for row in rows:
                     d = date.fromisoformat(row[metric["time_column"]])
                     keys = (d.year, (d.month - 1) // 3 + 1) + ((d.month,) if frequency == "month" else ())
-                    period_rows.setdefault(keys, []).append(row)
                     keys = tuple(row[c] for c in group_by) + keys
                     bucket.setdefault(keys, []).append(row)
                 names = group_by + ["demo_year", "demo_quarter"] + (["demo_month"] if frequency == "month" else [])
@@ -289,7 +291,7 @@ def build_blueprint(config):
         "table_counts": counts,
         "delta_table_count": len(tables) + 2,
         "raw_extract_count": len(raw_counts),
-        "physical_rows": sum(counts.values()) + sum(raw_counts.values()) + 2 * len(tables) + 3,
+        "physical_rows": sum(counts.values()) + sum(raw_counts.values()) + 2 * len(tables) + 2,
         "date_window": {"start": start.isoformat(), "end": end.isoformat()},
         "metrics": metrics,
         "referential_integrity": checks,

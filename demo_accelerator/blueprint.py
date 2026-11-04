@@ -82,16 +82,22 @@ def column_map(proposal):
     return result
 
 
-def validate_filters(filters, columns, label):
+def validate_filters(filters, columns, label, column_values=False):
     if not isinstance(filters, list):
         raise DemoError(f"{label}.filters must be a list")
     for item in filters:
-        _keys(item, ["column", "op", "value"], f"{label} filter")
+        _keys(item, ["column", "op", "value"] + (["other_column"] if column_values else []), f"{label} filter")
         column, op, value = item.get("column"), item.get("op"), item.get("value")
         if (not isinstance(column, str) or column not in columns
                 or not isinstance(op, str) or op not in OPERATORS):
             raise DemoError(f"{label}: filter needs a known column and supported operator")
         kind = columns[column]["type"]
+        if "other_column" in item:
+            other = item["other_column"]
+            if (not column_values or "value" in item or op == "in" or not isinstance(other, str)
+                    or other not in columns or columns[other]["type"] != kind):
+                raise DemoError(f"{label}: row checks need one same-typed comparison column")
+            continue
         values = value if op == "in" else [value]
         if not isinstance(values, list) or not values or not all(literal(v, kind) for v in values):
             raise DemoError(f"{label}: filter values must match {column}'s {kind} type")
@@ -115,7 +121,7 @@ def validate_proposal(config):
     row_bounds = {}
     for table in tables:
         _keys(table, ["name", "layer", "grain", "purpose", "source", "rows", "columns",
-                      "key", "from", "deduplicate_by", "filters", "unique_by"], "table")
+                      "key", "from", "deduplicate_by", "filters", "unique_by", "checks"], "table")
         name = identifier(table.get("name"), "table.name")
         if name.startswith("meta_"):
             raise DemoError(f"{name}: meta_ is reserved for generated governance tables")
@@ -269,6 +275,7 @@ def validate_proposal(config):
         if (not isinstance(unique, list) or any(not isinstance(c, str) or c not in columns[name] for c in unique)
                 or len(set(unique)) != len(unique)):
             raise DemoError(f"{name}: unique_by needs distinct known columns")
+        validate_filters(table.get("checks", []), columns[name], name, column_values=True)
         previous = {}
         for cname, column in columns[name].items():
             gen = column["generator"]
@@ -500,7 +507,7 @@ def validate_proposal(config):
         raise DemoError("Proposal must demonstrate bronze and silver alongside its gold metric tables")
     # Budget actual physical work, including raw JSON and governance, not a table-count quota.
     raw_bound = sum(row_bounds[t["name"]] for t in tables if t["layer"] == "bronze")
-    total_bound = sum(row_bounds.values()) + raw_bound + 2 * len(tables) + 3
+    total_bound = sum(row_bounds.values()) + raw_bound + 2 * len(tables) + 2
     if total_bound > config["scope"]["max_total_rows"]:
         raise DemoError(f"Proposed workload upper bound {total_bound} exceeds scope.max_total_rows "
                         f"({config['scope']['max_total_rows']}); reduce rows or approve a larger budget")

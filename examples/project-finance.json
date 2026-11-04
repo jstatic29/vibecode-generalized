@@ -113,6 +113,13 @@
       {
         "name": "bronze_supplier_invoice", "layer": "bronze", "source": 1, "rows": 300, "key": "invoice_id",
         "grain": "One supplier invoice as of 2026-10-31", "purpose": "Simulated AP snapshot with consistent balance and hold state",
+        "checks": [
+          {"column": "invoice_date", "op": "le", "value": "2026-10-31"},
+          {"column": "invoice_date", "op": "le", "other_column": "due_date"},
+          {"column": "paid_cents", "op": "ge", "value": 0},
+          {"column": "paid_cents", "op": "le", "other_column": "invoice_amount_cents"},
+          {"column": "open_balance_cents", "op": "ge", "value": 0}
+        ],
         "columns": [
           {"name": "invoice_id", "type": "int64", "description": "Synthetic invoice key", "generator": {"kind": "sequence"}},
           {"name": "project_id", "type": "int64", "description": "Related project", "generator": {"kind": "reference", "table": "dim_project", "column": "project_id"}},
