@@ -49,7 +49,8 @@ def build_blueprint(config):
         for name, table in pending.items():
             deps = {table["from"]} if table.get("from") else set()
             deps.update(c["generator"]["table"] for c in table.get("columns", [])
-                        if c["generator"]["kind"] == "reference")
+                        if c["generator"]["kind"] in {"reference", "lookup", "allocate"})
+            deps.update(c["references"]["table"] for c in table.get("columns", []) if "references" in c)
             if deps <= tables.keys():
                 ready.append(name)
         if not ready:
@@ -74,13 +75,18 @@ def build_blueprint(config):
                 schemas[name] = {c["name"]: c for c in table["columns"]}
                 rows = []
                 reference_values = {}
+                parent_rows = {}
                 for column in table["columns"]:
                     gen = column["generator"]
                     if gen["kind"] == "reference":
                         values = [r[gen["column"]] for r in tables[gen["table"]]]
                         if not values:
                             raise ValueError(f"{name}.{column['name']}: referenced table is empty")
-                        reference_values[column["name"]] = values
+                        reference_values[column["name"]] = (
+                            sorted(values) if gen.get("mode") == "cycle" else values)
+                    if gen["kind"] in ("lookup", "allocate"):
+                        via = schemas[name][gen["via"]]["generator"]
+                        parent_rows[gen["via"]] = {r[via["column"]]: r for r in tables[gen["table"]]}
                 for i in range(table["rows"]):
                     row = {}
                     for column in table["columns"]:
@@ -91,7 +97,9 @@ def build_blueprint(config):
                         elif kind == "integer":
                             value = gen["min"] + number(name, i, cname, gen["max"] - gen["min"] + 1)
                         elif kind == "choice":
-                            value = gen["values"][number(name, i, cname, len(gen["values"]))]
+                            offset = i % len(gen["values"]) if gen.get("mode") == "cycle" else number(
+                                name, i, cname, len(gen["values"]))
+                            value = gen["values"][offset]
                         elif kind == "boolean":
                             value = number(name, i, cname, 100) < gen["true_percent"]
                         elif kind == "date":
@@ -100,7 +108,47 @@ def build_blueprint(config):
                             value = f"{gen['prefix']} {i + 1:03d}"
                         elif kind == "reference":
                             values = reference_values[cname]
-                            value = values[number(name, i, cname, len(values))]
+                            offset = (i // gen.get("stride", 1)) % len(values) if gen.get("mode") == "cycle" else number(
+                                name, i, cname, len(values))
+                            value = values[offset]
+                        elif kind == "date_sequence":
+                            if gen["frequency"] == "day":
+                                value = (start + timedelta(days=i)).isoformat()
+                            else:
+                                month = start.year * 12 + start.month - 1 + i
+                                value = date(month // 12, month % 12 + 1, 1).isoformat()
+                        elif kind == "date_part":
+                            source = date.fromisoformat(row[gen["column"]])
+                            value = {
+                                "year": source.year, "month": source.month,
+                                "quarter": (source.month - 1) // 3 + 1,
+                                "month_start": source.replace(day=1).isoformat(),
+                            }[gen["part"]]
+                        elif kind == "date_offset":
+                            source = date.fromisoformat(row[gen["column"]])
+                            value = (source + timedelta(days=gen["min_days"] + number(
+                                name, i, cname, gen["max_days"] - gen["min_days"] + 1))).isoformat()
+                        elif kind == "lookup":
+                            value = parent_rows[gen["via"]][row[gen["via"]]][gen["column"]]
+                            if "min_days" in gen:
+                                value = (date.fromisoformat(value) + timedelta(days=gen["min_days"] + number(
+                                    name, i, cname, gen["max_days"] - gen["min_days"] + 1))).isoformat()
+                        elif kind == "map":
+                            cases = [c["value"] for c in gen["cases"] if c["when"] == row[gen["column"]]]
+                            if len(cases) != 1:
+                                raise ValueError(f"{name}.{cname}: no unique map case for {row[gen['column']]!r}")
+                            value = cases[0]
+                        elif kind == "difference":
+                            value = row[gen["left"]] - row[gen["right"]]
+                        elif kind == "scaled_integer":
+                            value = row[gen["column"]] * row[gen["factor_column"]] // gen["divisor"]
+                        elif kind == "allocate":
+                            parent = parent_rows[gen["via"]][row[gen["via"]]]
+                            total = parent[gen["total_column"]] * parent[gen["factor_column"]] // gen["divisor"]
+                            count = len(parent_rows[gen["via"]])
+                            position, ordinal = i % count, i // count
+                            children = table["rows"] // count + int(position < table["rows"] % count)
+                            value = total // children + int(ordinal < total % children)
                         else:
                             raise ValueError(f"Unknown generator: {kind}")
                         row[cname] = value
@@ -108,19 +156,37 @@ def build_blueprint(config):
             key = table.get("key")
             if key and len({r[key] for r in rows}) != len(rows):
                 raise ValueError(f"{name}.{key}: proposed unique key is not unique")
+            unique = table.get("unique_by", [])
+            if unique and len({tuple(r[c] for c in unique) for r in rows}) != len(rows):
+                raise ValueError(f"{name}: proposed unique_by grain is not unique")
+            for row in rows:
+                for cname, spec in schemas[name].items():
+                    if spec["type"] == "date":
+                        date.fromisoformat(row[cname])
             tables[name] = rows
+
+    def reference(table, column):
+        spec = schemas[table][column]
+        if "references" in spec:
+            return spec["references"]
+        gen = spec["generator"]
+        if gen["kind"] == "reference":
+            return {"table": gen["table"], "column": gen["column"]}
+        if gen["kind"] == "lookup":
+            return reference(gen["table"], gen["column"])
+        return None
 
     checks = []
     for name, columns in schemas.items():
         for cname, column in columns.items():
-            gen = column["generator"]
-            if gen["kind"] == "reference":
-                valid = {row[gen["column"]] for row in tables[gen["table"]]}
+            ref = reference(name, cname)
+            if ref:
+                valid = {row[ref["column"]] for row in tables[ref["table"]]}
                 missing = sum(row[cname] not in valid for row in tables[name])
                 if missing:
                     raise ValueError(f"{name}.{cname}: {missing} invalid references")
-                checks.append({"table": name, "column": cname, "target": gen["table"],
-                               "target_key": gen["column"], "missing": missing})
+                checks.append({"table": name, "column": cname, "target": ref["table"],
+                               "target_key": ref["column"], "missing": missing})
     metrics = {}
     for metric in proposal["metrics"]:
         rows = [r for r in tables[metric["table"]] if matches(r, metric.get("filters", []))]
@@ -143,6 +209,8 @@ def build_blueprint(config):
         groups = [dict(zip(group_by, key), **{metric["name"]: aggregate(values)})
                   for key, values in sorted(grouped.items())]
         latest = None
+        periods = []
+        quarters = []
         if metric.get("time_column"):
             quarter = (end.month - 1) // 3 + 1
             selected = [r for r in rows
@@ -152,10 +220,69 @@ def build_blueprint(config):
             next_quarter = date(end.year + 1, 1, 1) if quarter == 4 else date(end.year, quarter * 3 + 1, 1)
             latest = {"period": f"{end.year}-Q{quarter}", "value": aggregate(selected),
                       "complete": start <= quarter_start and end == next_quarter - timedelta(days=1)}
+            for frequency, destination in (("month", periods), ("quarter", quarters)):
+                bucket = {}
+                period_rows = {}
+                for row in rows:
+                    d = date.fromisoformat(row[metric["time_column"]])
+                    keys = (d.year, (d.month - 1) // 3 + 1) + ((d.month,) if frequency == "month" else ())
+                    period_rows.setdefault(keys, []).append(row)
+                    keys = tuple(row[c] for c in group_by) + keys
+                    bucket.setdefault(keys, []).append(row)
+                names = group_by + ["demo_year", "demo_quarter"] + (["demo_month"] if frequency == "month" else [])
+                for keys, values in sorted(bucket.items()):
+                    destination.append(dict(zip(names, keys), **{metric["name"]: aggregate(values)}))
+            quarter_totals = []
+            for year, q in sorted({(r["demo_year"], r["demo_quarter"]) for r in quarters}):
+                selected = [r for r in rows if int(r[metric["time_column"]][:4]) == year
+                            and (int(r[metric["time_column"]][5:7]) - 1) // 3 + 1 == q]
+                qstart = date(year, (q - 1) * 3 + 1, 1)
+                qend = date(year + 1, 1, 1) if q == 4 else date(year, q * 3 + 1, 1)
+                quarter_totals.append({"period": f"{year}-Q{q}", "value": aggregate(selected),
+                                       "complete": start <= qstart and end >= qend - timedelta(days=1)})
         metrics[metric["name"]] = {
             "value": aggregate(rows), "groups": groups, "unit": metric["unit"],
             "latest_quarter": latest,
+            "periods": periods if metric.get("period_grain") == "month" else quarters,
+            "quarters": quarter_totals if metric.get("time_column") else [],
         }
+    metric_defs = {m["name"]: m for m in proposal["metrics"]}
+    for metric in proposal.get("derived_metrics", []):
+        left, right = metrics[metric["left"]], metrics[metric["right"]]
+        definition = metric_defs[metric["left"]]
+
+        def calculate(a, b):
+            if a is None or b is None:
+                return None
+            return a - b if metric["operation"] == "difference" else a / b if b != 0 else None
+
+        def combine(a, b, keys):
+            l = {tuple(r[k] for k in keys): r for r in a}
+            r = {tuple(row[k] for k in keys): row for row in b}
+            return [dict(zip(keys, key), **{metric["name"]: calculate(
+                l.get(key, {}).get(metric["left"]), r.get(key, {}).get(metric["right"]))})
+                for key in sorted(l.keys() | r.keys())]
+
+        group = definition.get("group_by", [])
+        period_keys = ["demo_year", "demo_quarter"] + (
+            ["demo_month"] if definition.get("period_grain") == "month" else [])
+        latest = None
+        if left["latest_quarter"]:
+            latest = dict(left["latest_quarter"], value=calculate(
+                left["latest_quarter"]["value"], right["latest_quarter"]["value"]))
+        quarters = []
+        lq, rq = {r["period"]: r for r in left["quarters"]}, {r["period"]: r for r in right["quarters"]}
+        for period in sorted(lq.keys() | rq.keys()):
+            a, b = lq.get(period, {}), rq.get(period, {})
+            quarters.append({"period": period, "value": calculate(a.get("value"), b.get("value")),
+                             "complete": bool(a.get("complete") and b.get("complete"))})
+        metrics[metric["name"]] = {
+            "value": calculate(left["value"], right["value"]), "unit": metric["unit"],
+            "groups": combine(left["groups"], right["groups"], group),
+            "periods": combine(left["periods"], right["periods"], group + period_keys),
+            "latest_quarter": latest, "quarters": quarters,
+        }
+        metric_defs[metric["name"]] = definition
     counts = {name: len(rows) for name, rows in tables.items()}
     raw_counts = {t["name"]: counts[t["name"]] for t in proposal["tables"] if t["layer"] == "bronze"}
     expected = {

@@ -18,6 +18,8 @@ def scenario_contract(config):
         "audience_rationale": proposal["audience_rationale"],
         "assumptions": proposal["assumptions"],
         "tables": proposal["tables"], "metrics": proposal["metrics"],
+        "derived_metrics": proposal.get("derived_metrics", []),
+        "reporting": proposal.get("reporting"),
         "scope": config["scope"], "features": config["features"],
         "deployment": config["deployment"], "research": config.get("research", {}),
     }
@@ -37,6 +39,8 @@ def ontology_contract(config):
         ],
         "relationships": relationships(proposal),
         "rules": proposal["assumptions"],
+        "metrics": proposal["metrics"], "derived_metrics": proposal.get("derived_metrics", []),
+        "reporting": proposal.get("reporting"),
         "authoring_notes": [
             "Authoring contract, NOT a Fabric item definition. Use current generation-2 TMDL APIs.",
             "Use the declared names consistently; no geography, capacity, risk or finance entities are implied.",
@@ -85,6 +89,10 @@ def metric_views(config):
                 quarter = f"DATEPART(quarter,[{metric['time_column']}])"
                 selected.extend([f"{year} AS [demo_year]", f"{quarter} AS [demo_quarter]"])
                 groups.extend([year, quarter])
+                if metric.get("period_grain") == "month":
+                    month = f"MONTH([{metric['time_column']}])"
+                    selected.append(f"{month} AS [demo_month]")
+                    groups.append(month)
             selected.append(f"{expression} AS [{metric['name']}]")
             view = f"vw_{metric['name']}" + ("_period" if period else "")
             query = (
@@ -94,6 +102,32 @@ def metric_views(config):
                 + ("\nGROUP BY " + ", ".join(groups) if groups else "") + ";\n"
             )
             result.append({"name": view, "metric": metric["name"], "period": period, "sql": query})
+    definitions = {m["name"]: m for m in config["proposal"]["metrics"]}
+    for metric in config["proposal"].get("derived_metrics", []):
+        definition = definitions[metric["left"]]
+        for period in (False, True) if definition.get("time_column") else (False,):
+            keys = list(definition.get("group_by", []))
+            if period:
+                keys += ["demo_year", "demo_quarter"]
+                if definition.get("period_grain") == "month":
+                    keys.append("demo_month")
+            suffix = "_period" if period else ""
+            left = f"a.[{metric['left']}]"
+            right = f"b.[{metric['right']}]"
+            expression = f"{left} - {right}" if metric["operation"] == "difference" else (
+                f"CAST({left} AS float) / NULLIF({right}, 0)")
+            selected = [f"COALESCE(a.[{k}], b.[{k}]) AS [{k}]" for k in keys]
+            selected.append(f"{expression} AS [{metric['name']}]")
+            join = "FULL OUTER JOIN" if keys else "CROSS JOIN"
+            condition = "\nON " + " AND ".join(f"a.[{k}] = b.[{k}]" for k in keys) if keys else ""
+            view = f"vw_{metric['name']}{suffix}"
+            query = (
+                f"CREATE OR ALTER VIEW [{schema}].[{view}] AS\nSELECT {', '.join(selected)}\n"
+                f"FROM [{schema}].[vw_{metric['left']}{suffix}] a\n"
+                f"{join} [{schema}].[vw_{metric['right']}{suffix}] b{condition};\n"
+            )
+            result.append({"name": view, "metric": metric["name"], "period": period, "sql": query})
+        definitions[metric["name"]] = definition
     return result
 
 
@@ -130,17 +164,31 @@ def semantic_contract(config):
             else:
                 filters.append(f"{field} {ops[item['op']]} {dax_literal(item['value'])}")
         if filters:
-            expression = f"CALCULATE({expression}, {', '.join(filters)})"
+            expression = f"CALCULATE({expression}, {', '.join(f'KEEPFILTERS({f})' for f in filters)})"
         measures[metric["name"]] = {"label": metric["label"], "expression": expression,
                                     "unit": metric["unit"], "interpretation": metric["interpretation"]}
+    for metric in proposal.get("derived_metrics", []):
+        left, right = f"[{metric['left']}]", f"[{metric['right']}]"
+        expression = (
+            f"IF(ISBLANK({left}) || ISBLANK({right}), BLANK(), {left} - {right})"
+            if metric["operation"] == "difference" else f"DIVIDE({left}, {right})"
+        )
+        measures[metric["name"]] = {
+            "label": metric["label"], "expression": expression, "unit": metric["unit"],
+            "interpretation": metric["interpretation"],
+            "format_string": "0.0%;-0.0%;0.0%" if metric["unit"] == "ratio" else "#,0",
+        }
     return {
         "enabled": config["features"]["semantic_model"], "planning": config["features"]["planning"],
         "preferred_mode": "DirectLake", "fallback": "Import requires approval after compatibility check",
         "tables": [t["name"] for t in proposal["tables"] if t["layer"] == "gold"],
         "relationships": relationships(proposal), "measures": measures,
+        "reporting": proposal.get("reporting"),
         "notes": [
             "Contract only. Inspect actual schema and author through supported semantic-model tooling.",
             "Review relationship directions and ambiguous paths before authoring; infer no extra joins.",
+            "Use single-direction dimension-to-fact filtering; do not activate fact-to-fact paths.",
+            "Derived measures compare independently aggregated facts; missing operands stay blank, not zero.",
             "For dated facts, add/verify a contiguous date dimension and date key when authoring the model; "
             "if this needs new physical tables, revise the proposal and obtain fresh design approval.",
             "Reconcile every metric including filters and periods against expected.json.",
@@ -230,6 +278,8 @@ for definition in definitions:
     assert reference.exceptAll(actual).count() == 0, f"Missing rows: {name}"
     if definition.get("key"):
         assert actual.select(definition["key"]).distinct().count() == actual.count(), f"Duplicate key: {name}"
+    if definition.get("unique_by"):
+        assert actual.select(*definition["unique_by"]).distinct().count() == actual.count(), f"Duplicate grain: {name}"
 for relation in expected["referential_integrity"]:
     missing = spark.table(f"{SCHEMA}.{relation['table']}").join(
         spark.table(f"{SCHEMA}.{relation['target']}").select(
@@ -242,15 +292,49 @@ def aggregate(frame, metric):
     function = F.sum if agg == "sum" else F.avg
     return frame.agg(function(metric["column"])).first()[0]
 
+verified_metrics = {}
 for metric in config["proposal"]["metrics"]:
     actual = spark.table(f"{SCHEMA}.{metric['table']}").filter(predicate(metric.get("filters", [])))
     baseline = expected["metrics"][metric["name"]]
     assert aggregate(actual, metric) == baseline["value"], f"Metric mismatch: {metric['name']}"
+    verified_metrics[metric["name"]] = {"value": aggregate(actual, metric), "latest_quarter": None}
     if metric.get("time_column"):
         end = date.fromisoformat(config["scope"]["end_date"])
         dated = actual.filter((F.year(metric["time_column"]) == end.year) &
                              (F.quarter(metric["time_column"]) == (end.month - 1) // 3 + 1))
         assert aggregate(dated, metric) == baseline["latest_quarter"]["value"], "Period metric mismatch"
+        verified_metrics[metric["name"]]["latest_quarter"] = aggregate(dated, metric)
+    group = metric.get("group_by", [])
+    for period in (False, True) if metric.get("time_column") else (False,):
+        framed = actual
+        keys = list(group)
+        if period:
+            framed = framed.withColumn("demo_year", F.year(metric["time_column"])).withColumn(
+                "demo_quarter", F.quarter(metric["time_column"]))
+            keys += ["demo_year", "demo_quarter"]
+            if metric.get("period_grain") == "month":
+                framed = framed.withColumn("demo_month", F.month(metric["time_column"]))
+                keys.append("demo_month")
+        if keys:
+            function = F.count(F.lit(1)) if metric["aggregation"] == "count" else (
+                F.sum(metric["column"]) if metric["aggregation"] == "sum" else F.avg(metric["column"]))
+            observed = [r.asDict() for r in framed.groupBy(*keys).agg(function.alias(metric["name"])).collect()]
+            wanted = baseline["periods" if period else "groups"]
+            assert sorted(observed, key=repr) == sorted(wanted, key=repr), f"Grouped metric mismatch: {metric['name']}"
+
+for metric in config["proposal"].get("derived_metrics", []):
+    observed = {}
+    for scope in ("value", "latest_quarter"):
+        left = verified_metrics[metric["left"]][scope]
+        right = verified_metrics[metric["right"]][scope]
+        value = None if left is None or right is None else (
+            left - right if metric["operation"] == "difference" else left / right if right else None)
+        baseline = expected["metrics"][metric["name"]]
+        target = baseline["value"] if scope == "value" else (
+            baseline["latest_quarter"]["value"] if baseline["latest_quarter"] else None)
+        assert value == target, f"Derived metric mismatch: {metric['name']}"
+        observed[scope] = value
+    verified_metrics[metric["name"]] = observed
 
 lineage = [{"table_name": t["name"], "source": t.get("from", config["sources"][t.get("source", 0)]),
             "layer": t["layer"], "grain": t["grain"]} for t in definitions]
@@ -301,6 +385,11 @@ def generate(config, root, write_json, operator_guide):
         "Use aggregate-views.sql for independent aggregation; never multiply facts by joining raw facts. "
         "Return all metrics via SQL, not model arithmetic. Rank by metric then named group keys to break ties. "
         "Round once. Disclose synthetic data and incomplete periods. Keep tool requests below 1,000 characters.\n\n"
+        f"Reporting context: {json.dumps(proposal.get('reporting', {}))}\n\n"
+        f"Derived metrics: {json.dumps(proposal.get('derived_metrics', []))}\n\n"
+        "Derived metrics join independently aggregated views on every declared group/period key. "
+        "Reaggregate additive components before calculating ratios; never sum or average displayed ratios. "
+        "Missing operands or zero denominators stay null. Invoice cohorts are not historical AP snapshots.\n\n"
         "Preserve publishing instructions: deliver agent output as-is without summarizing, rephrasing or "
         "adding interpretation. Test draft and published behavior separately; example validation can differ.\n",
         encoding="utf-8",
@@ -317,6 +406,8 @@ def generate(config, root, write_json, operator_guide):
                   "Ask a grounded question", proposal["decision"]],
         "aggregate_views": [{k: v for k, v in item.items() if k != "sql"} for item in metric_views(config)],
         "metrics": proposal["metrics"],
+        "derived_metrics": proposal.get("derived_metrics", []),
+        "reporting": proposal.get("reporting"),
         "action_context": "Choose business keys/grain from the approved proposal; do not assume county/region",
         "permissions": "Authenticated read; service-enforced create/update/delete for claims.sub = owner_id",
         "safety": [

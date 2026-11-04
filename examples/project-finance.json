@@ -1,0 +1,145 @@
+{
+  "version": 2,
+  "customer": {"name": "Fictional project services company", "website": "https://example.com"},
+  "audience": "IT and finance teams: traceable project cost visibility and owned invoice-exception follow-up.",
+  "sources": [
+    "Invented project and supplier master data; not a confirmed customer system.",
+    "Invented approved cost budgets, actual-cost postings and AP snapshots; no customer records.",
+    "Generated calendar and cost classification supporting consistent financial comparisons."
+  ],
+  "scope": {"months": 12, "seed": 42, "end_date": "2026-10-31", "max_rows_per_table": 5000, "max_total_rows": 25000},
+  "features": {"app": true, "semantic_model": true, "planning": false},
+  "deployment": {"workspace_name": "CHOOSE_AN_APPROVED_WORKSPACE", "lakehouse_name": "lh_demo", "schema": "demo_project_finance"},
+  "research": {"industry_confirmed": false, "notes": "Fictional regression example, not researched customer data or deployment approval.", "references": []},
+  "proposal": {
+    "industry": "Project-oriented engineering and systems integration",
+    "title": "Project Finance Control Tower",
+    "business_question": "Which fictional projects are over their approved cost budgets for selected complete months, and which related supplier invoices on hold need finance follow-up?",
+    "audience_rationale": "Finance sees reconciled cost-to-budget measures and invoice exceptions; IT sees consistent definitions and illustrative lineage across synthetic source families.",
+    "decision": "Record an owned project or supplier follow-up in a separate action database; never modify accounting records.",
+    "assumptions": [
+      "All projects, suppliers, records, financial patterns and exceptions are fictional; no actual customer performance or source schema is implied.",
+      "Illustrative USD amounts are stored as integer cents; no tax, foreign exchange, revenue recognition or profit-margin calculation.",
+      "Positive cost variance means actual cost exceeds approved budget; it is not forecast cost-to-complete.",
+      "Each project/category/month has one approved budget. Actual postings split a deliberately selected 85%-140% budget factor exactly, using integer arithmetic, with 2 or 3 postings per budget cell.",
+      "Invoice balances are a snapshot as of 2026-10-31. Invoice-date filters select cohorts, not historical AP balances. Holds do not imply a cause of budget variance.",
+      "Do not add invoice balances to actual costs, assume production source contents, or claim production lineage from synthetic metadata.",
+      "Budget and actual comparisons require complete calendar months, not arbitrary day filters. Fiscal calendar and customer currency remain unconfirmed.",
+      "Raw Files and staging copies are small synthetic artifacts, not a migration or performance benchmark."
+    ],
+    "reporting": {
+      "calendar_table": "dim_date", "calendar_column": "date",
+      "period_table": "dim_period", "period_column": "period_id",
+      "as_of_date": "2026-10-31",
+      "notes": "Use complete-calendar-month period slicers. Budget dates are month starts; do not compare a daily actual subset with an entire monthly budget. Use single-direction dim_period -> dim_date -> facts, project -> facts, cost category -> budget/actual, supplier -> invoices. Supplier filters do not apply to cost-to-budget measures: keep invoice and cost visuals separately scoped. Invoice balances are fixed as of 2026-10-31, not historical balances. Q3 2026 is fully covered; Q4 2025 and Q4 2026 are incomplete and must be labelled. Ratios are fractions formatted as percentages; recompute after aggregating their components."
+    },
+    "tables": [
+      {
+        "name": "dim_project", "layer": "gold", "source": 0, "rows": 12, "key": "project_id",
+        "grain": "One fictional project", "purpose": "Shared project context and disclosed illustrative variance pattern",
+        "columns": [
+          {"name": "project_id", "type": "int64", "description": "Synthetic project key", "generator": {"kind": "sequence"}},
+          {"name": "project_label", "type": "string", "description": "Fictional display name", "generator": {"kind": "label", "prefix": "Illustrative project"}},
+          {"name": "portfolio", "type": "string", "description": "Invented portfolio label", "generator": {"kind": "choice", "mode": "cycle", "values": ["Portfolio A", "Portfolio B", "Portfolio C"]}},
+          {"name": "cost_factor_bps", "type": "int64", "description": "Synthetic scenario parameter only; 10000 means actual equals budget, not an observed business attribute", "generator": {"kind": "choice", "mode": "cycle", "values": [8500, 9500, 10000, 11000, 12500, 14000]}}
+        ]
+      },
+      {
+        "name": "dim_supplier", "layer": "gold", "source": 0, "rows": 20, "key": "supplier_id",
+        "grain": "One fictional supplier", "purpose": "Invoice relationship and follow-up context",
+        "columns": [
+          {"name": "supplier_id", "type": "int64", "description": "Synthetic supplier key", "generator": {"kind": "sequence"}},
+          {"name": "supplier_label", "type": "string", "description": "Fictional display name", "generator": {"kind": "label", "prefix": "Illustrative supplier"}}
+        ]
+      },
+      {
+        "name": "dim_cost_category", "layer": "gold", "source": 2, "rows": 6, "key": "cost_category_id",
+        "grain": "One illustrative cost category", "purpose": "Conformed budget and actual classification",
+        "columns": [
+          {"name": "cost_category_id", "type": "int64", "description": "Synthetic classification key", "generator": {"kind": "sequence"}},
+          {"name": "category_label", "type": "string", "description": "Illustrative accounting classification", "generator": {"kind": "choice", "mode": "cycle", "values": ["Labor", "Materials", "Subcontract services", "Equipment", "Travel", "Other direct costs"]}}
+        ]
+      },
+      {
+        "name": "dim_period", "layer": "gold", "source": 2, "rows": 12, "key": "period_id",
+        "grain": "One calendar month", "purpose": "Complete-month financial reporting",
+        "columns": [
+          {"name": "period_id", "type": "date", "description": "Calendar month start", "generator": {"kind": "date_sequence", "frequency": "month"}},
+          {"name": "calendar_year", "type": "int64", "description": "Calendar year, not an assumed fiscal year", "generator": {"kind": "date_part", "column": "period_id", "part": "year"}},
+          {"name": "calendar_quarter", "type": "int64", "description": "Calendar quarter", "generator": {"kind": "date_part", "column": "period_id", "part": "quarter"}},
+          {"name": "month_number", "type": "int64", "description": "Month number", "generator": {"kind": "date_part", "column": "period_id", "part": "month"}}
+        ]
+      },
+      {
+        "name": "dim_date", "layer": "gold", "source": 2, "rows": 365, "key": "date",
+        "grain": "One contiguous calendar day", "purpose": "Semantic-model date dimension",
+        "columns": [
+          {"name": "date", "type": "date", "description": "Contiguous calendar date", "generator": {"kind": "date_sequence", "frequency": "day"}},
+          {"name": "period_id", "type": "date", "description": "Owning calendar month", "generator": {"kind": "date_part", "column": "date", "part": "month_start"}, "references": {"table": "dim_period", "column": "period_id"}},
+          {"name": "calendar_year", "type": "int64", "description": "Calendar year", "generator": {"kind": "date_part", "column": "date", "part": "year"}},
+          {"name": "calendar_quarter", "type": "int64", "description": "Calendar quarter", "generator": {"kind": "date_part", "column": "date", "part": "quarter"}},
+          {"name": "month_number", "type": "int64", "description": "Month number", "generator": {"kind": "date_part", "column": "date", "part": "month"}}
+        ]
+      },
+      {
+        "name": "bronze_budget", "layer": "bronze", "source": 1, "rows": 864, "key": "budget_id",
+        "unique_by": ["project_id", "cost_category_id", "budget_month_start"],
+        "grain": "One project x cost category x calendar month", "purpose": "Simulated approved-cost-budget extract and raw JSON landing",
+        "columns": [
+          {"name": "budget_id", "type": "int64", "description": "Synthetic budget key", "generator": {"kind": "sequence"}},
+          {"name": "project_id", "type": "int64", "description": "Budget project", "generator": {"kind": "reference", "table": "dim_project", "column": "project_id", "mode": "cycle", "stride": 72}},
+          {"name": "cost_category_id", "type": "int64", "description": "Budget classification", "generator": {"kind": "reference", "table": "dim_cost_category", "column": "cost_category_id", "mode": "cycle", "stride": 12}},
+          {"name": "budget_month_start", "type": "date", "description": "Budget month start; related to shared daily calendar", "generator": {"kind": "reference", "table": "dim_period", "column": "period_id", "mode": "cycle"}, "references": {"table": "dim_date", "column": "date"}},
+          {"name": "approved_budget_cents", "type": "int64", "description": "Illustrative approved monthly cost budget in cents", "generator": {"kind": "integer", "min": 5000000, "max": 20000000}},
+          {"name": "cost_factor_bps", "type": "int64", "description": "Synthetic allocation parameter inherited from project, not a financial measure", "generator": {"kind": "lookup", "table": "dim_project", "via": "project_id", "column": "cost_factor_bps"}}
+        ]
+      },
+      {"name": "silver_budget", "layer": "silver", "from": "bronze_budget", "key": "budget_id", "unique_by": ["project_id", "cost_category_id", "budget_month_start"], "grain": "One valid project/category/month budget", "purpose": "Validate budget grain and keys"},
+      {"name": "fact_budget", "layer": "gold", "from": "silver_budget", "key": "budget_id", "unique_by": ["project_id", "cost_category_id", "budget_month_start"], "grain": "One approved project/category/month budget", "purpose": "Approved monthly cost baseline"},
+      {
+        "name": "bronze_cost_posting", "layer": "bronze", "source": 1, "rows": 2400, "key": "posting_id",
+        "grain": "One fictional actual-cost posting", "purpose": "Simulated postings with exact budget-dependent allocation",
+        "columns": [
+          {"name": "posting_id", "type": "int64", "description": "Synthetic posting key", "generator": {"kind": "sequence"}},
+          {"name": "budget_id", "type": "int64", "description": "Synthetic allocation lineage to staging; do not create a fact-to-fact model relationship", "generator": {"kind": "reference", "table": "silver_budget", "column": "budget_id", "mode": "cycle"}},
+          {"name": "project_id", "type": "int64", "description": "Conformed project copied from the same budget cell", "generator": {"kind": "lookup", "table": "silver_budget", "via": "budget_id", "column": "project_id"}},
+          {"name": "cost_category_id", "type": "int64", "description": "Conformed category copied from the same budget cell", "generator": {"kind": "lookup", "table": "silver_budget", "via": "budget_id", "column": "cost_category_id"}},
+          {"name": "posting_date", "type": "date", "description": "Posting within the budget month; first 28 days deliberately avoid month rollover", "generator": {"kind": "lookup", "table": "silver_budget", "via": "budget_id", "column": "budget_month_start", "min_days": 0, "max_days": 27}},
+          {"name": "actual_cost_cents", "type": "int64", "description": "Exact allocated actual cents; children sum to floor(budget * cost_factor_bps / 10000)", "generator": {"kind": "allocate", "table": "silver_budget", "via": "budget_id", "total_column": "approved_budget_cents", "factor_column": "cost_factor_bps", "divisor": 10000}}
+        ]
+      },
+      {"name": "silver_cost_posting", "layer": "silver", "from": "bronze_cost_posting", "key": "posting_id", "grain": "One valid actual-cost posting", "purpose": "Validate posting keys and references"},
+      {"name": "fact_cost_posting", "layer": "gold", "from": "silver_cost_posting", "key": "posting_id", "grain": "One actual-cost posting", "purpose": "Actual-cost aggregation independent of invoices"},
+      {
+        "name": "bronze_supplier_invoice", "layer": "bronze", "source": 1, "rows": 300, "key": "invoice_id",
+        "grain": "One supplier invoice as of 2026-10-31", "purpose": "Simulated AP snapshot with consistent balance and hold state",
+        "columns": [
+          {"name": "invoice_id", "type": "int64", "description": "Synthetic invoice key", "generator": {"kind": "sequence"}},
+          {"name": "project_id", "type": "int64", "description": "Related project", "generator": {"kind": "reference", "table": "dim_project", "column": "project_id"}},
+          {"name": "supplier_id", "type": "int64", "description": "Related supplier", "generator": {"kind": "reference", "table": "dim_supplier", "column": "supplier_id"}},
+          {"name": "invoice_date", "type": "date", "description": "Invoice issue date; cohort date, not historical balance date", "generator": {"kind": "reference", "table": "dim_date", "column": "date"}},
+          {"name": "due_date", "type": "date", "description": "Illustrative 30-day terms; may extend beyond snapshot date", "generator": {"kind": "date_offset", "column": "invoice_date", "min_days": 30, "max_days": 30}},
+          {"name": "invoice_amount_cents", "type": "int64", "description": "Original invoice amount in cents", "generator": {"kind": "integer", "min": 100000, "max": 5000000}},
+          {"name": "review_status", "type": "string", "description": "Fictional review state", "generator": {"kind": "choice", "mode": "cycle", "values": ["Ready", "On hold", "Paid"]}},
+          {"name": "paid_percent", "type": "int64", "description": "Synthetic paid percentage implied by review state", "generator": {"kind": "map", "column": "review_status", "cases": [{"when": "Ready", "value": 25}, {"when": "On hold", "value": 0}, {"when": "Paid", "value": 100}]}},
+          {"name": "paid_cents", "type": "int64", "description": "Paid amount, bounded by invoice amount", "generator": {"kind": "scaled_integer", "column": "invoice_amount_cents", "factor_column": "paid_percent", "divisor": 100}},
+          {"name": "open_balance_cents", "type": "int64", "description": "Invoice amount minus paid amount, not additional actual cost", "generator": {"kind": "difference", "left": "invoice_amount_cents", "right": "paid_cents"}},
+          {"name": "is_on_hold", "type": "boolean", "description": "Explicit hold flag matching review state", "generator": {"kind": "map", "column": "review_status", "cases": [{"when": "Ready", "value": false}, {"when": "On hold", "value": true}, {"when": "Paid", "value": false}]}},
+          {"name": "hold_reason", "type": "string", "description": "Illustrative reason, not a cause of cost variance", "generator": {"kind": "map", "column": "review_status", "cases": [{"when": "Ready", "value": "None"}, {"when": "On hold", "value": "Awaiting supporting documentation"}, {"when": "Paid", "value": "None"}]}}
+        ]
+      },
+      {"name": "silver_supplier_invoice", "layer": "silver", "from": "bronze_supplier_invoice", "key": "invoice_id", "grain": "One valid supplier invoice snapshot", "purpose": "Typed invoice records and consistent balances"},
+      {"name": "fact_supplier_invoice", "layer": "gold", "from": "silver_supplier_invoice", "key": "invoice_id", "grain": "One supplier invoice snapshot", "purpose": "Held-invoice follow-up without accounting writeback"}
+    ],
+    "metrics": [
+      {"name": "approved_budget_cents", "label": "Approved cost budget", "table": "fact_budget", "aggregation": "sum", "column": "approved_budget_cents", "group_by": ["project_id", "cost_category_id"], "time_column": "budget_month_start", "period_grain": "month", "unit": "cents", "interpretation": "Approved monthly cost budget; use complete month filters and conformed project/category keys."},
+      {"name": "actual_cost_cents", "label": "Actual cost", "table": "fact_cost_posting", "aggregation": "sum", "column": "actual_cost_cents", "group_by": ["project_id", "cost_category_id"], "time_column": "posting_date", "period_grain": "month", "unit": "cents", "interpretation": "Actual postings; aggregate independently of budgets and invoices before comparison."},
+      {"name": "held_invoice_count", "label": "Held supplier invoices", "table": "fact_supplier_invoice", "aggregation": "count", "filters": [{"column": "is_on_hold", "op": "eq", "value": true}, {"column": "open_balance_cents", "op": "gt", "value": 0}], "group_by": ["project_id", "supplier_id"], "time_column": "invoice_date", "period_grain": "month", "unit": "invoices", "interpretation": "Held invoices with positive current open balance as of 2026-10-31; selected months identify invoice cohorts."},
+      {"name": "held_open_balance_cents", "label": "Held invoice open balance", "table": "fact_supplier_invoice", "aggregation": "sum", "column": "open_balance_cents", "filters": [{"column": "is_on_hold", "op": "eq", "value": true}, {"column": "open_balance_cents", "op": "gt", "value": 0}], "group_by": ["project_id", "supplier_id"], "time_column": "invoice_date", "period_grain": "month", "unit": "cents", "interpretation": "Current held open balance as of 2026-10-31, not historical AP, cash forecast or additional cost."}
+    ],
+    "derived_metrics": [
+      {"name": "cost_variance_cents", "label": "Cost over budget", "operation": "difference", "left": "actual_cost_cents", "right": "approved_budget_cents", "unit": "cents", "interpretation": "Actual minus budget at identical project/category/month grain; positive means over budget. Missing operands remain null."},
+      {"name": "cost_variance_ratio", "label": "Cost variance percentage", "operation": "ratio", "left": "cost_variance_cents", "right": "approved_budget_cents", "unit": "ratio", "interpretation": "Aggregated variance / aggregated budget; 0.10 means 10%. Recalculate after aggregation, never average row percentages. Missing or zero-budget comparisons remain null."}
+    ]
+  }
+}
