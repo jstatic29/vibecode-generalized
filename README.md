@@ -29,8 +29,8 @@ supported declarative recipes and approval contract.
 | Website research and use-case recommendations | Copilot/operator-assisted in Chat; no embedded LLM/crawler |
 | Flexible proposed schema, grains, sources, references and metrics | Implemented, validated declarative recipes |
 | Deterministic local previews and exact expected answers | Implemented |
-| Raw JSON -> bronze -> silver -> gold notebook | Generated from the proposal; not yet live-validated |
-| Durable notebook deployment/job monitoring | Implemented, with mocked recovery checks; not yet live-validated |
+| Raw JSON -> bronze -> silver -> gold notebook | Generated from the proposal; one synthetic project-finance data build live-validated |
+| Durable notebook deployment/job monitoring | One live notebook build completed, including recovery after an async create response; mocked recovery checks also retained |
 | Approval gates, artifact integrity and evidence | Implemented |
 | Ontology, graph, data agent and Rayfin app | Dynamic contracts/runbook; specialist-assisted authoring/deployment |
 | Optional semantic model and Fabric Planning | Dynamic contracts and gates; specialist-assisted implementation |
@@ -38,6 +38,11 @@ supported declarative recipes and approval contract.
 
 Generated contracts are **not deployed features**. A full accelerator release still
 needs concrete specialist deployment adapters and live reference/rehearsal runs.
+The project-finance data-stage reference reconciled all 16 Delta table counts,
+headline totals and selected-quarter project rankings through the SQL endpoint,
+with additional allocation, invoice, calendar and reference checks. This is not
+live verification of other scenarios, DAX, ontology/graph, agents or apps, nor a
+completed full-stack reference or second-presenter run.
 New industries do not require new Python code when their schemas fit the supported
 recipes. Richer correlations or transformations do require tested extensions; the
 engine fails explicitly rather than substituting a healthcare pattern.

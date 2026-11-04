@@ -375,6 +375,10 @@ class DeploymentTests(RunFixture):
         import base64
         nb = json.loads(base64.b64decode(payload["definition"]["parts"][0]["payload"]))
         self.assertEqual(nb["metadata"]["dependencies"]["lakehouse"]["default_lakehouse"], "lakehouse")
+        self.assertEqual(fake.posts[1][1], {"executionData": {"configuration": {
+            "useStarterPool": True,
+            "defaultLakehouse": {"id": "lakehouse", "name": "lh_demo", "workspaceId": "workspace"},
+        }}})
 
     def test_lost_submit_response_resumes_by_discovery(self):
         self.ready()
@@ -455,6 +459,33 @@ class DeploymentTests(RunFixture):
         ]) as request:
             self.assertEqual(client.listing("/v1/items?type=Lakehouse"), [{"id": "a"}, {"id": "b"}])
         self.assertIn("continuationToken=token%2B%2F%3D", request.call_args_list[1].args[1])
+
+    def test_async_null_body_preserves_operation_headers(self):
+        from unittest.mock import MagicMock
+        client = Client()
+        response = MagicMock()
+        response.status = 202
+        response.headers = {"Location": "/v1/operations/created"}
+        response.read.return_value = b"null"
+        response.__enter__.return_value = response
+        with patch("shutil.which", return_value="az"), patch(
+            "subprocess.run", return_value=MagicMock(returncode=0, stdout="test-token")
+        ), patch.object(client.opener, "open", return_value=response):
+            self.assertEqual(client.request("POST", "/v1/items", {}),
+                             (202, response.headers, {}))
+
+    def test_unexpected_null_resource_response_fails_explicitly(self):
+        from unittest.mock import MagicMock
+        client = Client()
+        response = MagicMock()
+        response.status = 200
+        response.read.return_value = b"null"
+        response.__enter__.return_value = response
+        with patch("shutil.which", return_value="az"), patch(
+            "subprocess.run", return_value=MagicMock(returncode=0, stdout="test-token")
+        ), patch.object(client.opener, "open", return_value=response):
+            with self.assertRaisesRegex(DemoError, "unreadable"):
+                client.request("GET", "/v1/items/item")
 
 
 if __name__ == "__main__":

@@ -52,7 +52,12 @@ class Client:
         try:
             with self.opener.open(request, timeout=60) as response:
                 text = response.read().decode("utf-8")
-                return response.status, dict(response.headers), json.loads(text) if text else {}
+                body = json.loads(text) if text else {}
+                if body is None and response.status in {202, 204}:
+                    body = {}
+                if not isinstance(body, dict):
+                    raise ValueError("Fabric response must be an object or an empty async response")
+                return response.status, dict(response.headers), body
         except urllib.error.HTTPError as exc:
             # Do not log request headers, tokens or potentially sensitive response bodies.
             raise DemoError(f"Fabric {method} failed with HTTP {exc.code}; "
@@ -221,9 +226,9 @@ def deploy_data(root, timeout=1800, client=None):
             resources["job_attempted"] = now()
             save(Path(root) / "state.json", state)
             _, headers, body = client.request("POST", job_path + "?jobType=RunNotebook", {
-                "executionData": {"useStarterPool": True, "defaultLakehouse": {
+                "executionData": {"configuration": {"useStarterPool": True, "defaultLakehouse": {
                     "id": lakehouse, "name": config["deployment"]["lakehouse_name"], "workspaceId": wid,
-                }},
+                }}},
             })
             location = header(headers, "Location")
             job_id = body.get("id") or (urllib.parse.urlparse(location).path.rstrip("/").split("/")[-1]
