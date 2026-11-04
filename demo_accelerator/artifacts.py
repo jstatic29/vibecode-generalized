@@ -5,7 +5,7 @@ import json
 from pathlib import Path
 
 from . import data
-from .config import SCENARIOS, digest
+from .config import SCENARIOS, digest, require_proposal
 
 
 def write_json(path, value):
@@ -14,6 +14,10 @@ def write_json(path, value):
 
 
 def scenario_contract(config):
+    if config["version"] == 2:
+        from .flexible_artifacts import scenario_contract as flexible
+        require_proposal(config)
+        return flexible(config)
     scenario = SCENARIOS[config["scenario"]]
     return {
         "customer": config["customer"],
@@ -46,6 +50,9 @@ def scenario_contract(config):
 
 
 def ontology_contract(config):
+    if config["version"] == 2:
+        from .flexible_artifacts import ontology_contract as flexible
+        return flexible(config)
     schema = config["deployment"]["schema"]
     entities = [
         ("Region", "dim_region", "region_id"),
@@ -89,6 +96,9 @@ def ontology_contract(config):
 
 
 def analytical_sql(config):
+    if config["version"] == 2:
+        from .flexible_artifacts import analytical_sql as flexible
+        return flexible(config)
     s = config["deployment"]["schema"]
     return f"""-- Synthetic aggregates only. No fact-to-fact joins.
 CREATE OR ALTER VIEW [{s}].[vw_demo_region_period] AS
@@ -124,6 +134,9 @@ LEFT JOIN risk k ON k.region_id=d.region_id;
 
 
 def notebook(config):
+    if config["version"] == 2:
+        from .flexible_artifacts import notebook as flexible
+        return flexible(config)
     runtime = dict(config, scenario_resources=SCENARIOS[config["scenario"]]["resources"])
     setup = (
         "import json\nimport calendar\nimport hashlib\nfrom datetime import date, timedelta\n"
@@ -224,7 +237,7 @@ assert quarter_events.count() == expected["latest_quarter_events"], "Quarter cou
 quarter_actionable = quarter_events.join(spark.table(f"{SCHEMA}.dim_reason"), "reason_id").filter(
     F.col("capacity_driven") & F.col("actionable")).count()
 assert quarter_actionable == expected["latest_quarter_actionable"], "Quarter metric mismatch"
-assert spark.table(f"{SCHEMA}.meta_dictionary").count() == 17, "Catalog incomplete"
+assert spark.table(f"{SCHEMA}.meta_dictionary").count() == len(tables) + 2, "Catalog incomplete"
 print(json.dumps({"config_hash": CONFIG_HASH, "verified": True, "expected": expected}))
 """
     cells = [
@@ -245,6 +258,9 @@ print(json.dumps({"config_hash": CONFIG_HASH, "verified": True, "expected": expe
 
 
 def semantic_contract(config):
+    if config["version"] == 2:
+        from .flexible_artifacts import semantic_contract as flexible
+        return flexible(config)
     return {
         "enabled": config["features"]["semantic_model"],
         "planning": config["features"]["planning"],
@@ -295,6 +311,10 @@ def semantic_contract(config):
 
 def generate(config, root):
     root = Path(root)
+    require_proposal(config)
+    if config["version"] == 2:
+        from .flexible_artifacts import generate as flexible
+        return flexible(config, root, write_json, operator_guide)
     scenario = SCENARIOS[config["scenario"]]
     runtime = dict(config, scenario_resources=scenario["resources"])
     tables, expected = data.build_data(runtime)
@@ -378,23 +398,42 @@ GROUP BY relationship
 
 
 def operator_guide(config):
+    if config["version"] == 2:
+        design = (
+            "The synthetic schema and workload follow proposal.tables. Count Delta tables dynamically "
+            "(declared tables plus two governance tables); raw bronze extracts are Files, not Delta tables. "
+            "Review each table's purpose/grain/source, key relationships, transformation, row bound and "
+            "metrics. Validate the physical-row budget, not an arbitrary table quota."
+        )
+        research = (
+            "Use the customer website, audience and described sources to suggest 2-3 use cases in Chat. "
+            "Recommend a use case and its synthetic schema; cite public sources, distinguish facts from "
+            "inferences, and ask the user to select/approve. No industry allowlist or fixed table count. "
+            "The selected proposal drives all downstream artifacts. Record industry confirmation and "
+            "research evidence before the story gate. See docs/flexible-proposals.md."
+        )
+    else:
+        design = "Legacy reference schema; its table count is an example, not a platform requirement."
+        research = (
+            "This version-1 scenario is an opt-in regression example. Use version-2 intake for new "
+            "customer industries and flexible schemas. Research public sources and confirm assumptions."
+        )
     return f"""# Customer demo run: {config['customer']['name']}
 
 This is a guided Copilot/operator workflow, not an unattended full-stack deployment.
-Only the data-stage adapter is automated in v0.1. IQ, semantic model, Planning and
+Only the data-stage adapter is automated. IQ, semantic model, Planning and
 Rayfin authoring/deployment require the current specialist skills and recorded evidence.
 Contracts are NOT Fabric item definitions. No generated JSON contract can be POSTed as an item.
 
 ## 1. Research and story gate
-Read the public customer website, cite sources, confirm industry and audience relevance.
-Do not infer internal systems as fact. Review the user's source descriptions and all
-scenario.json assumptions. The approved use case must fit a curated template; stop
-and extend/test the template for unsupported scenarios. Set research.industry_confirmed,
-notes and references in intake BEFORE creating the final run.
+{research}
+Do not infer internal systems as fact. Review all scenario.json assumptions.
+The CLI does not contain an embedded LLM/crawler; Copilot performs proposal research.
+Unsupported declarative recipes must be implemented/tested, not silently approximated.
 
 ## 2. Design gate
 Review scenario.json, expected.json, ontology-contract.json, app-contract.json and
-semantic-model-contract.json. Synthetic tables: 15 data tables + 2 governance tables.
+semantic-model-contract.json. {design}
 Review raw -> bronze -> silver -> gold notebook and read-only previews.
 Approve scope, costs, feature availability, workspace and fresh schema. No real data.
 
@@ -439,7 +478,8 @@ Keep model name/identity stable after binding. Save and read back a test scenari
 ## 7. Optional Fabric App gate
 Enabled: {config['features']['app']}.
 Load rayfin-getting-started and generated in-project skills; consult installed CLI docs.
-Review aggregate-views.sql SELECTs against expected.json BEFORE applying the view.
+Review aggregate-views.sql SELECTs against expected.json BEFORE applying each view.
+For version-2 proposals, execute GO-separated SQL batches separately.
 Use the app-contract.json story and live aggregate connector; use a labelled snapshot
 only with explicit approval. Rayfin dev and up both write Fabric resources.
 Run its workspace-specific dry run before deployment; never --force or --yes.

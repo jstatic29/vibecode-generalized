@@ -7,7 +7,8 @@ import sys
 from pathlib import Path
 
 from .artifacts import generate, scenario_contract
-from .config import DemoError, SCENARIOS, example, load
+from .config import DemoError, SCENARIOS, brief, example, load
+from .discovery import research_brief
 from .fabric import Client, deploy_data, preflight
 from .state import REQUIRED_CHECKS, approve, complete, initialize, locked, read
 
@@ -16,7 +17,8 @@ def parser():
     result = argparse.ArgumentParser(prog="fabric-demo")
     commands = result.add_subparsers(dest="command", required=True)
     init = commands.add_parser("init", help="Write an intake template; no network calls")
-    init.add_argument("--scenario", choices=SCENARIOS, default="healthcare-access")
+    init.add_argument("--scenario", choices=SCENARIOS,
+                      help="Optional legacy regression example; omit for an industry-independent brief")
     init.add_argument("--output", required=True, type=Path)
     plan = commands.add_parser("plan", help="Validate and preview scenario; no writes to Fabric")
     plan.add_argument("config", type=Path)
@@ -41,12 +43,23 @@ def execute(args):
     if args.command == "init":
         args.output.parent.mkdir(parents=True, exist_ok=True)
         with args.output.open("x", encoding="utf-8") as stream:
-            json.dump(example(args.scenario), stream, indent=2)
+            json.dump(example(args.scenario) if args.scenario else brief(), stream, indent=2)
             stream.write("\n")
         return {"intake": str(args.output), "next": "Edit customer, sources, research and approved target"}
     if args.command == "plan":
         config = load(args.config)
-        return {"contract": scenario_contract(config), "delta_tables": 17,
+        if config["version"] == 2 and config.get("proposal") is None:
+            return research_brief(config)
+        if config["version"] == 2:
+            from .flexible_data import build_blueprint
+            tables, expected = build_blueprint(config)
+            workload = {"delta_tables": len(tables) + 2, "physical_rows": expected["physical_rows"],
+                        "raw_extracts": expected["raw_extract_count"]}
+        else:
+            from .data import build_data
+            tables, _ = build_data(dict(config, scenario_resources=SCENARIOS[config["scenario"]]["resources"]))
+            workload = {"delta_tables": len(tables) + 2}
+        return {"contract": scenario_contract(config), **workload,
                 "runtime": "Target 2-4 hours for a guided demo run after prerequisites; not benchmarked",
                 "automated": ["local work-package generation", "approved data notebook submission/monitoring"],
                 "specialist_assisted": ["website research", "ontology/graph", "data agent", "Rayfin app",

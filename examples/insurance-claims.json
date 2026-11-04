@@ -1,0 +1,117 @@
+{
+  "version": 2,
+  "customer": {"name": "Illustrative insurer", "website": "https://example.com"},
+  "audience": "Claims operations leaders deciding where to focus adjuster effort",
+  "sources": [
+    "Claims administration: policies, claims, adjuster assignments and claim status",
+    "Payment ledger: illustrative settlement entries"
+  ],
+  "scope": {
+    "months": 12, "seed": 42, "end_date": "2026-09-30",
+    "max_rows_per_table": 10000, "max_total_rows": 100000
+  },
+  "features": {"app": true, "semantic_model": false, "planning": false},
+  "deployment": {
+    "workspace_name": "CHOOSE_AN_APPROVED_WORKSPACE",
+    "lakehouse_name": "lh_demo", "schema": "demo_claims"
+  },
+  "research": {
+    "industry_confirmed": false,
+    "notes": "Fictional worked example, not website research or an approved customer proposal.",
+    "references": []
+  },
+  "proposal": {
+    "industry": "Insurance",
+    "title": "Claims workload and settlement visibility",
+    "business_question": "Which policy portfolios have the most open claims, and how much has been recorded in settlement payments overall?",
+    "audience_rationale": "Claims leaders can prioritize an owned follow-up rather than inspect disconnected status and payment extracts.",
+    "decision": "Record an adjuster follow-up for a selected portfolio and period.",
+    "assumptions": [
+      "All policies, adjusters, claims and payments are synthetic; no policyholder or personal data.",
+      "Statuses and settlement amounts are illustrative, not inferred from a real insurer.",
+      "Claims and payments have different grains; aggregate each independently before comparison.",
+      "Opened date defines claim cohorts; status is current, not status as of the historical period.",
+      "Payments are ledger entries, not claim reserves, loss ratios or evidence of leakage."
+    ],
+    "tables": [
+      {
+        "name": "dim_policy", "layer": "gold", "grain": "One fictional policy portfolio",
+        "purpose": "Shared portfolio context for the claims story and ontology",
+        "source": 0, "rows": 6, "key": "policy_id",
+        "columns": [
+          {"name": "policy_id", "type": "int64", "description": "Synthetic portfolio key", "generator": {"kind": "sequence"}},
+          {"name": "policy_label", "type": "string", "description": "Fictional portfolio display name", "generator": {"kind": "label", "prefix": "Illustrative portfolio"}},
+          {"name": "product", "type": "string", "description": "Illustrative insurance product", "generator": {"kind": "choice", "values": ["Property", "Motor", "Commercial"]}}
+        ]
+      },
+      {
+        "name": "dim_adjuster", "layer": "gold", "grain": "One fictional adjuster team",
+        "purpose": "Explain claim assignment without identifying real staff",
+        "source": 0, "rows": 4, "key": "adjuster_id",
+        "columns": [
+          {"name": "adjuster_id", "type": "int64", "description": "Synthetic team key", "generator": {"kind": "sequence"}},
+          {"name": "team_label", "type": "string", "description": "Fictional team label", "generator": {"kind": "label", "prefix": "Illustrative team"}}
+        ]
+      },
+      {
+        "name": "bronze_claim", "layer": "bronze", "grain": "One synthetic claim",
+        "purpose": "Simulate the claims administration extract",
+        "source": 0, "rows": 400, "key": "claim_id",
+        "columns": [
+          {"name": "claim_id", "type": "int64", "description": "Synthetic claim key", "generator": {"kind": "sequence"}},
+          {"name": "policy_id", "type": "int64", "description": "Policy portfolio assigned to the claim", "generator": {"kind": "reference", "table": "dim_policy", "column": "policy_id"}},
+          {"name": "adjuster_id", "type": "int64", "description": "Assigned fictional team", "generator": {"kind": "reference", "table": "dim_adjuster", "column": "adjuster_id"}},
+          {"name": "opened_date", "type": "date", "description": "Date the claim was opened, not closed or valued", "generator": {"kind": "date"}},
+          {"name": "status", "type": "string", "description": "Illustrative current claim status", "generator": {"kind": "choice", "values": ["Open", "Closed", "Awaiting documents"]}}
+        ]
+      },
+      {
+        "name": "silver_claim", "layer": "silver", "grain": "One normalized claim",
+        "purpose": "Deduplicate the simulated claim extract",
+        "from": "bronze_claim", "deduplicate_by": ["claim_id"], "key": "claim_id"
+      },
+      {
+        "name": "fact_claim", "layer": "gold", "grain": "One synthetic claim",
+        "purpose": "Measure current workload by opened-date cohort and portfolio",
+        "from": "silver_claim", "key": "claim_id"
+      },
+      {
+        "name": "bronze_payment", "layer": "bronze", "grain": "One settlement ledger entry",
+        "purpose": "Simulate the separate payment ledger",
+        "source": 1, "rows": 600, "key": "payment_id",
+        "columns": [
+          {"name": "payment_id", "type": "int64", "description": "Synthetic ledger entry key", "generator": {"kind": "sequence"}},
+          {"name": "claim_id", "type": "int64", "description": "Claim receiving this illustrative entry", "generator": {"kind": "reference", "table": "fact_claim", "column": "claim_id"}},
+          {"name": "paid_date", "type": "date", "description": "Independent synthetic payment date; no claim-sequence realism is implied", "generator": {"kind": "date"}},
+          {"name": "amount_cents", "type": "int64", "description": "Illustrative settlement amount in cents", "generator": {"kind": "integer", "min": 10000, "max": 500000}}
+        ]
+      },
+      {
+        "name": "silver_payment", "layer": "silver", "grain": "One valid payment ledger entry",
+        "purpose": "Validate positive ledger amounts before promotion",
+        "from": "bronze_payment", "filters": [{"column": "amount_cents", "op": "gt", "value": 0}],
+        "key": "payment_id"
+      },
+      {
+        "name": "fact_payment", "layer": "gold", "grain": "One settlement ledger entry",
+        "purpose": "Measure recorded settlement amounts independently from claim counts",
+        "from": "silver_payment", "key": "payment_id"
+      }
+    ],
+    "metrics": [
+      {
+        "name": "open_claims", "label": "Currently open claims",
+        "table": "fact_claim", "aggregation": "count",
+        "filters": [{"column": "status", "op": "in", "value": ["Open", "Awaiting documents"]}],
+        "group_by": ["policy_id"], "time_column": "opened_date", "unit": "claims",
+        "interpretation": "Count current Open/Awaiting documents claims, grouped by portfolio and optionally opened-date cohort; not historical backlog."
+      },
+      {
+        "name": "settlement_cents", "label": "Recorded settlement payments",
+        "table": "fact_payment", "aggregation": "sum", "column": "amount_cents",
+        "filters": [], "group_by": [], "time_column": "paid_date", "unit": "cents",
+        "interpretation": "Sum ledger entries in cents overall; does not measure reserves or loss ratios. Do not equate paid-date periods with opened-date cohorts."
+      }
+    ]
+  }
+}

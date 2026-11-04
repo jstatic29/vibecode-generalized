@@ -62,11 +62,7 @@ def _text(value, label, maximum=500):
     return value.strip()
 
 
-def validate(value):
-    _keys(value, ["version", "customer", "audience", "scenario", "sources", "scope",
-                  "features", "deployment", "research"], "configuration")
-    if type(value.get("version")) is not int or value["version"] != 1:
-        raise DemoError("version must be 1")
+def validate_common(value):
     customer = value.get("customer")
     _keys(customer, ["name", "website"], "customer")
     _text(customer.get("name"), "customer.name", 120)
@@ -75,26 +71,26 @@ def validate(value):
     if not parsed or parsed.scheme != "https" or not parsed.hostname or parsed.username or parsed.password:
         raise DemoError("customer.website must be an HTTPS URL without credentials")
     _text(value.get("audience"), "audience")
-    if value.get("scenario") not in SCENARIOS:
-        raise DemoError(f"scenario must be one of: {', '.join(SCENARIOS)}")
     sources = value.get("sources")
-    if not isinstance(sources, list) or not 1 <= len(sources) <= 6:
-        raise DemoError("sources must contain 1 to 6 high-level source descriptions")
+    if not isinstance(sources, list) or not sources:
+        raise DemoError("sources must contain high-level source descriptions")
+    if value["version"] == 1 and len(sources) > 6:
+        raise DemoError("Legacy scenarios support at most 6 source descriptions; use a version-2 brief")
     for source in sources:
         _text(source, "source description", 300)
     scope = value.get("scope")
-    _keys(scope, ["events", "regions", "locations", "months", "seed", "end_date"], "scope")
     for key, lower, upper in [
-        ("events", 100, 10000), ("regions", 3, 12), ("locations", 6, 24),
-        ("months", 3, 24), ("seed", 0, 2147483647),
+        ("months", 3 if value["version"] == 1 else 1, 24), ("seed", 0, 2147483647),
     ]:
         n = scope.get(key)
         if type(n) is not int or not lower <= n <= upper:
             raise DemoError(f"scope.{key} must be an integer from {lower} to {upper}")
-    if scope["locations"] < scope["regions"]:
-        raise DemoError("scope.locations must be at least scope.regions")
     try:
-        date.fromisoformat(scope["end_date"])
+        end = date.fromisoformat(scope["end_date"])
+        if end.isoformat() != scope["end_date"]:
+            raise ValueError("Use YYYY-MM-DD")
+        if end.year * 12 + end.month - scope["months"] < 12:
+            raise ValueError("Date window precedes year 1")
     except (ValueError, KeyError, TypeError) as exc:
         raise DemoError("scope.end_date must be an ISO date (YYYY-MM-DD)") from exc
     features = value.get("features")
@@ -123,6 +119,70 @@ def validate(value):
     ):
         raise DemoError("research.references must be a list of HTTPS source URLs")
     return value
+
+
+def validate(value):
+    _keys(value, ["version", "customer", "audience", "scenario", "sources", "scope",
+                  "features", "deployment", "research", "proposal"], "configuration")
+    if type(value.get("version")) is not int or value["version"] not in (1, 2):
+        raise DemoError("version must be 1 or 2")
+    scope = value.get("scope")
+    if value["version"] == 2:
+        return validate_brief(value)
+    if "proposal" in value:
+        raise DemoError("Legacy scenario configurations do not support proposal; use version 2")
+    if not isinstance(value.get("scenario"), str) or value["scenario"] not in SCENARIOS:
+        raise DemoError(f"scenario must be one of: {', '.join(SCENARIOS)}")
+    _keys(scope, ["events", "regions", "locations", "months", "seed", "end_date"], "scope")
+    validate_common(value)
+    for key, lower, upper in [
+        ("events", 100, 10000), ("regions", 3, 12), ("locations", 6, 24),
+    ]:
+        n = scope.get(key)
+        if type(n) is not int or not lower <= n <= upper:
+            raise DemoError(f"scope.{key} must be an integer from {lower} to {upper}")
+    if scope["locations"] < scope["regions"]:
+        raise DemoError("scope.locations must be at least scope.regions")
+    return value
+
+
+def validate_brief(value):
+    """A brief can precede a proposed industry and schema."""
+    _keys(value, ["version", "customer", "audience", "sources", "scope", "features",
+                  "deployment", "research", "proposal"], "configuration")
+    if type(value.get("version")) is not int or value["version"] != 2:
+        raise DemoError("version must be 2")
+    scope = value.get("scope")
+    _keys(scope, ["months", "seed", "end_date", "max_rows_per_table", "max_total_rows"], "scope")
+    validate_common(value)
+    for key, lower, upper in [
+        ("max_rows_per_table", 1, 100000), ("max_total_rows", 1, 1000000),
+    ]:
+        n = scope.get(key)
+        if type(n) is not int or not lower <= n <= upper:
+            raise DemoError(f"scope.{key} must be an integer from {lower} to {upper}")
+    if value.get("proposal") is not None:
+        from .blueprint import validate_proposal
+        validate_proposal(value)
+    return value
+
+
+def brief():
+    legacy = example()
+    return {
+        "version": 2, "customer": legacy["customer"], "audience": legacy["audience"],
+        "sources": ["Describe the existing systems and the kinds of data they hold"],
+        "scope": {"months": 12, "seed": 42, "end_date": "2026-09-30",
+                  "max_rows_per_table": 10000, "max_total_rows": 100000},
+        "features": legacy["features"], "deployment": legacy["deployment"],
+        "research": legacy["research"], "proposal": None,
+    }
+
+
+def require_proposal(config):
+    if config["version"] == 2 and config.get("proposal") is None:
+        raise DemoError("Research the customer and propose a use case and synthetic schema first. "
+                        "Run plan for the Copilot research brief; a website alone does not choose a schema.")
 
 
 def load(path):

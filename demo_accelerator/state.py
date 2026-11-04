@@ -116,6 +116,10 @@ def approve(root, gate, note):
         raise DemoError("An explicit approval note is required")
     if gate == "story" and not config.get("research", {}).get("industry_confirmed"):
         raise DemoError("Research/industry is unconfirmed. Update intake and generate a new run before approval.")
+    if gate == "story" and config["version"] == 2:
+        research = config.get("research", {})
+        if not research.get("notes", "").strip() or not research.get("references"):
+            raise DemoError("Customer proposals need research notes and cited public sources before story approval")
     state["gates"][gate] = {"status": "approved", "approved_at": now(), "note": note}
     audit(root, state, "approve", gate, note=note)
 
