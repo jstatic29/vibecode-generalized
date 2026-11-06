@@ -21,6 +21,24 @@ examples, not the only supported industries.
 Read [Flexible proposals](docs/flexible-proposals.md) for the discovery workflow,
 supported declarative recipes and approval contract.
 
+## Companion skill
+
+The repository-local
+[fabric-demo-companion](.github/skills/fabric-demo-companion/SKILL.md) skill
+captures the guided workflow and lessons learned, alongside the installed Fabric
+specialist skills. Ask Copilot to "use fabric-demo-companion to build or resume
+this demo." It provides phase routing, manual checkpoints, evidence/recovery
+guidance and an operational evidence template; it does not install dependencies
+or add deployment adapters. See
+[GitHub's skill discovery documentation](https://docs.github.com/en/copilot/concepts/customizations/agent-skills)
+for supported hosts. Host discovery/reload may be needed after adding a skill;
+the file can also be read directly. No personal/global installation is performed.
+
+Version 0.1.0 preserves validated practices separately from observed workarounds
+and owner attestations. It includes the lakehouse-first, two-publication agent
+flow and the current post-ontology acceptance handoff; live IDs remain in private
+run evidence, not in the portable skill.
+
 ## Status: working foundation, not a turnkey end-to-end deployer
 
 | Capability | Current implementation |
@@ -32,7 +50,8 @@ supported declarative recipes and approval contract.
 | Raw JSON -> bronze -> silver -> gold notebook | Generated from the proposal; one synthetic project-finance data build live-validated |
 | Durable notebook deployment/job monitoring | One live notebook build completed, including recovery after an async create response; mocked recovery checks also retained |
 | Approval gates, artifact integrity and evidence | Implemented |
-| Ontology, graph, data agent and Rayfin app | Dynamic contracts/runbook; specialist-assisted authoring/deployment |
+| Ontology and graph | Dynamic contracts/runbook; one specialist-assisted six-entity finance projection live-verified after native binding repair |
+| Data agent and Rayfin app | Dynamic contracts/runbook; specialist-assisted authoring/deployment, live reference pending |
 | Optional semantic model and Fabric Planning | Dynamic contracts and gates; specialist-assisted implementation |
 | Few-hour runtime target | Design goal, not benchmarked |
 
@@ -40,8 +59,17 @@ Generated contracts are **not deployed features**. A full accelerator release st
 needs concrete specialist deployment adapters and live reference/rehearsal runs.
 The project-finance data-stage reference reconciled all 16 Delta table counts,
 headline totals and selected-quarter project rankings through the SQL endpoint,
-with additional allocation, invoice, calendar and reference checks. This is not
-live verification of other scenarios, DAX, ontology/graph, agents or apps, nor a
+with additional allocation, invoice, calendar and reference checks. Its focused
+six-entity ontology/graph also reconciled node/edge counts, sampled properties,
+key uniqueness, financial totals, Q3 project aggregates and an actual two-edge
+invoice traversal against SQL. Native portal property reselection was required
+to repair lakehouse bindings; exported ontology key types and materialized graph
+key types differ, as documented in [Flexible proposals](docs/flexible-proposals.md).
+The selected ontology flow uses the dedicated `/ontologies` API, not Ontology
+Agent. After the final API write, the operator opens each entity's **Bind data ->
+Properties**, reselects the correct **Source column** from its already bound
+lakehouse table, saves and verifies all mappings and graph eligibility.
+This is not live verification of other scenarios, DAX, agents or apps, nor a
 completed full-stack reference or second-presenter run.
 New industries do not require new Python code when their schemas fit the supported
 recipes. Richer correlations or transformations do require tested extensions; the
@@ -193,7 +221,10 @@ Each run's `OPERATOR.md` guides the specialist-assisted stages:
   guide portal-only materialization/attachment as needed. Verify properties and
   edges through GQL, not refresh status alone.
 - Configure and publish the data agent from the same metric rules, source grains
-  and terminology. Test draft/published separately and use bounded question samples.
+  and terminology. Select relevant facts and supporting business/calendar/period
+  dimensions from the approved analytical model, not just ontology entities;
+  include dimension-based slicing/grouping examples. Test draft/published
+  separately and use bounded question samples.
 - If selected, build/reconcile the semantic model; inspect date dimensions and
   relationship ambiguity. For Planning, verify compatibility, approved destination,
   permissions and scenario readback.

@@ -300,6 +300,43 @@ class FinanceRecipeTests(unittest.TestCase):
             guide = (root / "OPERATOR.md").read_text(encoding="utf-8")
             self.assertNotIn("region filters", guide)
             self.assertIn("complete-calendar-month", guide)
+            self.assertIn("POST /v1/workspaces/{workspaceId}/ontologies", guide)
+            self.assertIn("/ontologies/{ontologyId}/updateDefinition", guide)
+            self.assertIn("do not use Ontology Agent", guide)
+            self.assertIn("entity -> Bind data -> Properties -> Source column", guide)
+            self.assertIn("Full-definition updates can remove these native repairs", guide)
+            self.assertIn("ontology relationship names AND labels", guide)
+            self.assertIn("Finish naming/rule edits before rebinding", guide)
+            self.assertIn("approved analytical model, not just the", guide)
+            self.assertIn("multi-dimensional slicing/grouping", guide)
+            self.assertIn("Add ontology to the agent manually", guide)
+            self.assertIn("Sources -> Add sources -> Add an ontology", guide)
+            self.assertIn("manually repair errored draft examples", guide)
+            self.assertIn("empty SQL comment --", guide)
+            self.assertIn("Both publications require approval", guide)
+            self.assertLess(guide.index("publish SQL-only"), guide.index("manually add ontology"))
+            instructions = (root / "data-agent-instructions.md").read_text(encoding="utf-8")
+            for table in config["proposal"]["tables"]:
+                if table["layer"] == "gold":
+                    self.assertIn(table["name"], instructions)
+            self.assertIn("not just the focused ontology projection", instructions)
+            self.assertIn("combined dimension filters", instructions)
+            self.assertIn("Examples must demonstrate dimension joins", instructions)
+            self.assertIn("do not multiply monthly facts", instructions)
+            self.assertIn("alternate date roles fall outside the calendar", instructions)
+            self.assertIn("add ontology context manually", instructions)
+            self.assertIn("This attachment is not automated", instructions)
+            self.assertIn("manually open errored draft examples", instructions)
+            self.assertIn("record portal validation separately", instructions)
+            self.assertIn("Both publications require approval", instructions)
+            self.assertLess(instructions.index("publish SQL-only"), instructions.index("manually add ontology"))
+            self.assertIn("after the second publication verify examples remain error-free", instructions)
+            contract = json.loads((root / "ontology-contract.json").read_text(encoding="utf-8"))
+            self.assertTrue(any("not Ontology Agent" in note for note in contract["authoring_notes"]))
+            self.assertTrue(any("existing bound lakehouse table" in note
+                                for note in contract["authoring_notes"]))
+            self.assertTrue(any("business-friendly entity, ontology relationship name/label and rule names"
+                                in note for note in contract["authoring_notes"]))
 
 
 if __name__ == "__main__":

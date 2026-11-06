@@ -4,6 +4,12 @@ Read README.md before execution. This is a private, synthetic-data demo toolkit.
 Do not touch the original healthcareindustry2 project or reuse its resource IDs.
 Do not copy its generated envelopes, credentials, node_modules or runtime state.
 
+For end-to-end demo creation or resumption, use the repository-local
+`.github/skills/fabric-demo-companion/SKILL.md` companion and its relevant phase
+reference alongside current installed Fabric specialist skills. It captures
+checkpoints and evidence requirements; it does not replace these rules, grant
+approval or provide additional deployment adapters.
+
 ## Operating contract
 
 - Website + audience + source descriptions inform a proposed scenario, not claims

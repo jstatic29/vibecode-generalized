@@ -1,0 +1,35 @@
+{
+  "schema_version": 1,
+  "purpose": "Companion operational note only; not CLI gate evidence or authorization.",
+  "recorded_at": null,
+  "run_path": null,
+  "phase": null,
+  "artifact_version_or_hash": null,
+  "approval": {
+    "reference": null,
+    "scope": null,
+    "confirmed": false
+  },
+  "target": {
+    "workspace_id": null,
+    "item_id": null,
+    "operation_or_job_id": null
+  },
+  "checks": [
+    {
+      "name": null,
+      "evidence_kind": null,
+      "status": "not_assessed",
+      "observed_at": null,
+      "expected": null,
+      "observed": null,
+      "evidence_reference": null,
+      "operator_statement": null,
+      "limitations": []
+    }
+  ],
+  "pending_manual_steps": [],
+  "blockers": [],
+  "next_check": null,
+  "gate_completion_claimed": false
+}

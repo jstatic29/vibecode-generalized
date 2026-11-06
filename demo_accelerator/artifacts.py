@@ -88,6 +88,9 @@ def ontology_contract(config):
         "authoring_notes": [
             "This JSON is an authoring contract, NOT a Fabric ontology definition.",
             "Use the current ontology skill and validate supported generation-2 API/TMDL.",
+            "Use dedicated /ontologies create/updateDefinition endpoints, not Ontology Agent.",
+            "Use business-friendly entity, ontology relationship name/label and rule names before final native rebinding; keep technical physical join IDs separate and update rule relationship references.",
+            "After the final API write, each entity: Bind data -> Properties -> Source column; reselect from its existing bound lakehouse table, Save, verify all mappings and graph eligibility.",
             "Persist lineage tags per run; diff portal-written bindings before updateDefinition.",
             "No Decimal graph properties: money is int64 cents.",
             "After portal refresh, verify edge counts and properties through actual GQL.",
@@ -348,8 +351,24 @@ Do not expose source-level identifiers in answers.
 Publishing description: Return the data agent's output as-is without summarizing,
 rephrasing or adding interpretation. Confirm that this is preserved on publication.
 
-Attach ontology in the portal if the API still blocks it. Configure selected gold
+Configure selected gold
 tables/columns, instructions and checked examples using current supported tools.
+After creation, the operator must open errored draft examples, make a safe edit
+(such as appending a newline and an empty SQL comment --), save and verify that
+validation clears. Preserve SQL semantics; do not hide executable SQL in comments
+or assume re-saving guarantees a fix. Record portal validation separately from SQL.
+Required sequence: lakehouse first -> repair draft examples -> publish SQL-only
+agent in preview runtime -> manually add ontology -> publish again.
+Both publications require approval. Capture a bounded SQL-only answer baseline
+after the first publication. Add ontology context manually in the portal:
+Sources -> Add sources -> Add an ontology. This is a required operator step,
+not an automated adapter. Verify examples remain error-free after the second
+publication and repeat the answer sample; validation alone does not prove accuracy.
+Select facts and supporting business/calendar/period dimensions from the approved
+analytical model, not just the focused ontology projection. Enable scenario-relevant
+slicing, combined dimension filters, grouping and drill-down along valid relationships.
+Verify columns against live SQL and include dimension-join examples; do not invent
+attribution, multiply fact rows or silently drop unmatched alternate date roles.
 Test draft and published independently; published example validation is a known
 historical issue, NOT proof the runtime will use the examples.
 """
@@ -450,11 +469,45 @@ Wait for SQL endpoint metadata sync and independently verify expected.json using
 ## 4. Fabric IQ gate (specialist-assisted)
 Use fabriciq-ontology-cli authoring and the CURRENT Fabric data-agent guidance.
 Resolve current APIs, do not copy old undocumented routes blindly. Produce generation-2
-TMDL from ontology-contract.json, persist lineage tags, deploy once, diff readback.
-Guide portal binding/materialization if required. Completion of a refresh is not proof:
+TMDL from ontology-contract.json, including physical backing joins and business relationships.
+Persist lineage tags. Use POST /v1/workspaces/{{workspaceId}}/ontologies for creation
+and POST /v1/workspaces/{{workspaceId}}/ontologies/{{ontologyId}}/updateDefinition
+for explicitly approved updates; do not use Ontology Agent in this flow.
+Give entities, ontology relationship names AND labels, and rules business-friendly
+names before deployment; the Relationship Types sidebar displays names, not labels.
+Keep technical physical join IDs separate. Preserve lineage and update linked rule
+references when renaming ontology elements. Finish naming/rule edits before rebinding.
+Deploy once, diff readback. After the final API write, the operator must open each
+entity -> Bind data -> Properties -> Source column, expand the existing bound
+lakehouse table, reselect the correct source column for a property, and Save.
+One reselection restored all properties for an entity in the finance test; verify
+every mapping and reselect any still unresolved. Repeat for every entity without
+recreating its lakehouse binding. Verify graph eligibility and capture fresh
+definition readback. Full-definition updates can remove these native repairs:
+finish API edits first, or repeat this checkpoint after an approved later update.
+Materialize only after the applicable approval. Completion of a refresh is not proof:
 query actual properties, relationship counts and aggregate parity with SQL.
-Attach ontology to agent in portal if blocked by API. Configure lakehouse source,
-instructions and SQL examples. Publish only after approval. Preserve publishing description.
+Configure lakehouse source,
+instructions and SQL examples. Select scenario-relevant facts and supporting business,
+calendar and period dimensions from the approved analytical model, not just the
+focused ontology projection. Verify the actual schema, date roles and valid filter
+paths; demonstrate multi-dimensional slicing/grouping in live-checked examples.
+Aggregate facts independently at matching grain; never multiply monthly budgets
+by joining them to every calendar day.
+After agent creation, manually repair errored draft examples: open each affected
+example, append a newline and an empty SQL comment -- (or another safe edit),
+save and verify validation clears without changing SQL semantics. Record the
+portal result; direct SQL success alone does not clear this checkpoint.
+Required sequence: lakehouse first -> repair draft examples -> publish SQL-only
+agent in preview runtime -> manually add ontology -> publish again.
+Both publications require approval. Preserve publishing description on both.
+Capture a bounded SQL-only answer baseline after the first publication.
+Add ontology to the agent manually: Sources -> Add sources -> Add an ontology.
+Record operator confirmation separately from machine readback.
+Do not retry the blocked ontology datasource-create route.
+After the second publication, verify example errors remain cleared and repeat
+a bounded answer sample against the pre-attachment baseline. Example validation
+does not establish answer accuracy or ontology use.
 Start with one capacity-health question, then a small bounded repeated sample, concurrency <=2.
 Record SQL/graph parity and draft/published results separately, including known issues.
 Do not claim a SQL answer proves graph execution. Do not retry through capacity throttling.

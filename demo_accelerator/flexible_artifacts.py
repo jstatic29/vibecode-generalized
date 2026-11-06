@@ -43,6 +43,9 @@ def ontology_contract(config):
         "reporting": proposal.get("reporting"),
         "authoring_notes": [
             "Authoring contract, NOT a Fabric item definition. Use current generation-2 TMDL APIs.",
+            "Use dedicated /ontologies create/updateDefinition endpoints, not Ontology Agent.",
+            "Use business-friendly entity, ontology relationship name/label and rule names before final native rebinding; keep technical physical join IDs separate and update rule relationship references.",
+            "After the final API write, each entity: Bind data -> Properties -> Source column; reselect from its existing bound lakehouse table, Save, verify all mappings and graph eligibility.",
             "Use the declared names consistently; no geography, capacity, risk or finance entities are implied.",
             "Persist lineage tags and diff portal-written bindings; verify actual graph keys/properties/edges.",
             "Validate each metric's table grain and filters against expected.json.",
@@ -385,7 +388,14 @@ def generate(config, root, write_json, operator_guide):
         f"# {proposal['title']}\n\nQuestion: {proposal['business_question']}\n\n"
         "Use scenario.json and ontology-contract.json for the declared business meaning, grains, "
         "relationships and assumptions. Use proposal metrics exactly; no implied capacity, geography, "
-        "financial or risk definitions. Query only the approved gold tables. Each metric has its own "
+        "financial or risk definitions. Query only the approved gold tables. "
+        f"Analytical source tables: {', '.join(t['name'] for t in proposal['tables'] if t['layer'] == 'gold')}. "
+        "Select the facts and supporting business/calendar/period dimensions from the approved "
+        "analytical model, not just the focused ontology projection. Verify selected columns "
+        "against the live SQL schema. Enable scenario-relevant slicing, combined dimension filters, "
+        "grouping and drill-down only along valid relationships; do not invent attribution. "
+        "Examples must demonstrate dimension joins and multi-dimensional analysis, not only totals. "
+        "Each metric has its own "
         "filters, units, grouping and optional time column; undated metrics must stay explicitly undated. "
         "Use aggregate-views.sql for independent aggregation; never multiply facts by joining raw facts. "
         "Return all metrics via SQL, not model arithmetic. Rank by metric then named group keys to break ties. "
@@ -394,7 +404,22 @@ def generate(config, root, write_json, operator_guide):
         f"Derived metrics: {json.dumps(proposal.get('derived_metrics', []))}\n\n"
         "Derived metrics join independently aggregated views on every declared group/period key. "
         "Reaggregate additive components before calculating ratios; never sum or average displayed ratios. "
-        "Missing operands or zero denominators stay null. Invoice cohorts are not historical AP snapshots.\n\n"
+        "Missing operands or zero denominators stay null. Use the declared date roles and period "
+        "grain; do not multiply monthly facts by joining to every day in a month. "
+        "Invoice cohorts are not historical AP snapshots. Do not silently drop facts whose "
+        "alternate date roles fall outside the calendar window.\n\n"
+        "Required sequence: lakehouse first -> repair draft examples -> publish SQL-only agent in "
+        "preview runtime -> manually add ontology -> publish again. Both publications require approval. "
+        "Capture a bounded SQL-only answer baseline after the first publication.\n\n"
+        "Operator checkpoint after agent creation: manually open errored draft examples, make a safe "
+        "edit such as appending a newline and an empty SQL comment --, save and verify validation "
+        "clears. Preserve SQL semantics; record portal validation separately from direct SQL success. "
+        "Re-saving is not a guaranteed fix for every error.\n\n"
+        "Operator checkpoint: add ontology context manually in the portal via Sources -> Add sources -> "
+        "Add an ontology. This attachment is not automated. Record operator confirmation separately "
+        "from machine readback; after the second publication verify examples remain error-free "
+        "and repeat a bounded answer sample against "
+        "the pre-attachment baseline. Do not retry the blocked ontology datasource-create route.\n\n"
         "Preserve publishing instructions: deliver agent output as-is without summarizing, rephrasing or "
         "adding interpretation. Test draft and published behavior separately; example validation can differ.\n",
         encoding="utf-8",
