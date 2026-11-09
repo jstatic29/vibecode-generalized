@@ -8,9 +8,11 @@ customer data, workspace identifiers, deployment state or credentials.
 ## Customer-led, not industry-template-led
 
 Start with a **customer website, audience and high-level existing-source descriptions**.
-Copilot researches the context and suggests use cases and a synthetic data design.
+Copilot researches the context and suggests use cases and a synthetic data design,
+or an opt-in, read-only assessment of existing lakehouse tables through shortcuts.
 The presenter selects/revises the recommendation and approves the story and schema
-before Fabric writes.
+before synthetic Fabric deployment. Existing mode first obtains separate approval
+for its dedicated destination and read-only assessment.
 
 There is **no industry allowlist and no fixed table count** in the default intake.
 An approved model can have 10, 25 or another justified number of Delta tables.
@@ -34,7 +36,7 @@ or add deployment adapters. See
 for supported hosts. Host discovery/reload may be needed after adding a skill;
 the file can also be read directly. No personal/global installation is performed.
 
-Version 0.1.0 preserves validated practices separately from observed workarounds
+Version 0.2.0 preserves validated practices separately from observed workarounds
 and owner attestations. It includes the lakehouse-first, two-publication agent
 flow and the current post-ontology acceptance handoff; live IDs remain in private
 run evidence, not in the portable skill.
@@ -47,6 +49,7 @@ run evidence, not in the portable skill.
 | Website research and use-case recommendations | Copilot/operator-assisted in Chat; no embedded LLM/crawler |
 | Flexible proposed schema, grains, sources, references and metrics | Implemented, validated declarative recipes |
 | Deterministic local previews and exact expected answers | Implemented |
+| Existing lakehouse data through manual table shortcuts | Gated setup/inventory and opt-in timeout-controlled SQL assessment; full live assessment/downstream acceptance pending |
 | Raw JSON -> bronze -> silver -> gold notebook | Generated from the proposal; one synthetic project-finance data build live-validated |
 | Durable notebook deployment/job monitoring | One live notebook build completed, including recovery after an async create response; mocked recovery checks also retained |
 | Approval gates, artifact integrity and evidence | Implemented |
@@ -142,6 +145,161 @@ python -m demo_accelerator init --scenario healthcare-access --output legacy-int
 | `deployment` | Approved existing workspace, lakehouse and fresh `demo_` schema |
 | `research` | Public citations, inference caveats and industry confirmation |
 | `proposal` | Selected use case, rationale, decision, assumptions, tables and metrics |
+| `data_mode` | Optional version-2 choice: `synthetic` (default) or `existing-lakehouse` |
+| `existing_data` | Existing mode only: individual shortcut aliases and business purposes |
+
+### Existing-data option
+
+Synthetic remains the default; old intake/run hashes are unchanged. Existing mode
+uses a **new accelerator-created demo lakehouse** in an approved existing workspace.
+The operator manually creates individual **OneLake table shortcuts** to selected
+existing tables in that destination, then Copilot assesses only approved metadata
+and bounded aggregates. It never generates synthetic substitutes or writes to sources.
+
+**Shortcuts alone do not ensure read-only access.** Source owners must verify
+effective read-only permissions for every execution identity, including delegated
+SQL/Direct Lake item owners. Writes through a shortcut can affect its target.
+If source read-only access cannot be established, stop; do not try a test write.
+See [OneLake shortcuts and security](https://learn.microsoft.com/en-us/fabric/onelake/onelake-shortcuts).
+
+```powershell
+python -m demo_accelerator init --data-mode existing-lakehouse --output existing-intake.json
+# Copilot researches/gets use-case selection and fills research, target and table aliases.
+python -m demo_accelerator plan existing-intake.json
+python -m demo_accelerator generate existing-intake.json --run-dir .demo-runs\existing-001
+python -m demo_accelerator approve --run-dir .demo-runs\existing-001 --gate lakehouse-setup --note "Approved creation of this new dedicated demo lakehouse"
+python -m demo_accelerator setup-lakehouse --run-dir .demo-runs\existing-001
+# STOP: operator creates individual table shortcuts in the returned lakehouse's demo_ schema.
+python -m demo_accelerator approve --run-dir .demo-runs\existing-001 --gate shortcuts --note "Manual shortcuts ready for inventory and source-permission review"
+python -m demo_accelerator inspect-shortcuts --run-dir .demo-runs\existing-001
+python -m demo_accelerator evidence-template --run-dir .demo-runs\existing-001 --gate shortcuts
+```
+
+In the new intake, keep `proposal: null` and fill, for example:
+
+```json
+"existing_data": {
+  "tables": [
+    {"name": "orders", "purpose": "Order fulfillment measures"},
+    {"name": "customers", "purpose": "Approved customer segment relationships"}
+  ]
+},
+"scope": {
+  "max_query_seconds": 60,
+  "max_result_rows": 100,
+  "baseline_max_age_hours": 24
+}
+```
+
+These are alias/purpose examples, not customer data or an imposed schema. Copilot
+helps select the tables; the presenter need not define generators or column schemas.
+`inspect-shortcuts` reads the paginated inventory, rejects missing/extra aliases,
+unsupported/external targets and wrong destination paths, and persists the actual
+OneLake target identities. Only individual internal OneLake table shortcuts are
+supported; whole-schema shortcuts are not part of this flow.
+
+Save the evidence template outside the run, fill the exact targets and
+`inventory_sha256` from inventory readback plus owner permission/SQL-visibility
+evidence, then `complete --gate shortcuts --evidence <file>`. Inventory readback
+does **not** prove effective ACLs; permission verification remains an explicit
+owner attestation, without a write probe.
+
+Next approve `data-readiness` **before** reads; use its evidence template to record
+actual columns/types, grains, key/null/duplicate/orphan findings, relationships,
+date coverage/roles, units, sensitivity, metric mappings and timestamped aggregate
+baselines. Agree scan/partition/time-window budgets; result limits alone do not
+bound scanned data. No raw record previews/exports, `SELECT *`, source maintenance,
+automatic copies, metadata edits through shortcuts or automatic cleanup.
+The CLI checks baseline age on readiness completion; ongoing freshness, source
+drift and permission checks before publication/rehearsal are specialist checkpoints,
+not an automatic monitor. Baselines are observations, not synthetic expected values.
+
+#### Optional timeout-controlled SQL runner
+
+The specialist SQL MCP remains the default execution surface. When it cannot
+enforce the approved timeout, the operator can explicitly opt into this toolkit's
+ODBC runner instead; this is not an automatic fallback or a change to the installed
+specialist skill. It preserves existing run hashes and completed gates. Requires
+Microsoft ODBC Driver 18 for SQL Server and the optional `.[sql]` Python extra
+(`python -m pip install -e ".[sql]"` only if missing). Normal local generation/tests
+still need no dependencies. Authentication uses the current Azure CLI profile;
+set `AZURE_CONFIG_DIR` to the approved isolated profile before execution.
+Interactive sign-in is never bypassed.
+
+```powershell
+# After shortcuts completion: identity-only, no source metadata/records/aggregates.
+python -m demo_accelerator sql-preflight --run-dir .demo-runs\existing-001 --expected-login reader@example.com
+# Copilot prepares an assessment plan OUTSIDE the immutable generated artifacts.
+python -m demo_accelerator sql-plan --run-dir .demo-runs\existing-001 --plan assessment-plan.json
+# STOP for operator approval of both the gate and this exact plan.
+python -m demo_accelerator approve --run-dir .demo-runs\existing-001 --gate data-readiness --note "Approved reviewed metadata/aggregate scope"
+python -m demo_accelerator approve-sql-plan --run-dir .demo-runs\existing-001 --plan assessment-plan.json --note "Approved exact queries, scan budget and disclosure"
+python -m demo_accelerator run-sql-plan --run-dir .demo-runs\existing-001 --plan assessment-plan.json
+```
+
+`sql-plan` validates/previews locally; it does not approve or execute anything.
+The JSON plan has `version: 1`, the run's `config_hash`, accepted
+`inventory_sha256`, `expected_login` and a nonempty `queries` array. Each query has
+an `id`, approved `table` alias, `kind`, owner-reviewed `scan_budget` and `disclosure`.
+`kind: "columns"` returns only catalog column metadata. `kind: "aggregate"` uses
+`measures`, for example `{"name":"total","function":"sum","column":"Total Amount"}`,
+and optional `filters`, for example
+`{"column":"Invoice Date Key","op":">=","value":"2016-01-01"}`.
+Supported functions are `count_rows` (omit column), `count_distinct`, `null_count`,
+`sum`, `min`, `max`; comparisons are `=`, `<>`, `>`, `>=`, `<`, `<=`, ANDed together.
+All filters use bound parameters; identifiers are quoted and columns checked
+against live metadata. SUM is numeric-only; MIN/MAX are numeric/date/time-only.
+
+`kind: "relationship"` accepts a `relationship` object with child `column`,
+approved `parent_table` and `parent_column`. It returns only full-table child/
+parent counts, null-key counts, nonnull orphan count and distinct parent-key
+count using fixed EXISTS checks. Both columns are live-checked for matching
+SQL types. Duplicate parents do not multiply children. No measures or filters
+are accepted for this kind; include both tables' scan costs in plan approval.
+
+There is **no arbitrary SQL, raw-row selection, grouping, general joins, expressions,
+DDL/DML or automatic profiling**. Unsupported assessments (including business-grain
+and fiscal semantic checks) remain specialist work; this runner cannot by itself complete
+data-readiness. Scan budgets are reviewed scope, not an engine-enforced byte/row
+scan quota; filters and result caps do not guarantee partition pruning.
+
+The runner validates the live endpoint host/destination, rechecks shortcut target
+drift, verifies login/database before each query, applies the run's ODBC command
+timeout per statement and rejects result overflow instead of silently truncating.
+Approval is bound to the exact plan hash and retained as integrity-checked evidence.
+It persists request intent/results/failures separately, never credentials. Decimal
+results are exact strings, not binary floats. Source ACLs/delegation still require
+owner verification. Timeouts request driver cancellation, **not proof of remote
+termination**; no automatic retry, session kill or automatic gate completion.
+
+Live observation on 2026-11-09: the isolated read-only assessment identity
+connected successfully with a configured 60-second ODBC command timeout; an
+approved metadata-only plan automatically returned columns/types/nullability
+for all 14 shortcuts in one Lakehouse walkthrough. This is not a fixed table
+count. It verifies connection and metadata execution, not aggregate baselines,
+remote timeout cancellation, Warehouse-source behavior or completed readiness.
+SQL MCP authentication was independent of the Azure CLI profile; verify the
+actual SQL session identity rather than assuming either sign-in switches both.
+
+The existing-data gate order is:
+
+**lakehouse-setup -> shortcuts -> data-readiness -> story -> design -> fabric-iq ->
+optional semantic-model -> optional planning -> optional app -> rehearsal**.
+
+Read `OPERATOR.md`, `source-contract.json`, `assessment-metadata.sql` and
+`downstream-handoff.md`. After readiness, the approved assessment in
+`evidence/data-readiness.json` is the shared analytical model for specialist
+ontology/agent/model/app work; no synthetic notebook or `expected.json` is emitted.
+`deploy-data` is prohibited for this mode. Any curated output needs separate
+approval outside shortcut paths; Planning/app actions use separate owned destinations.
+Graph materialization, Import models and publication can copy/expose existing data
+even without source mutation and require sensitivity/disclosure approval.
+
+Lakehouse creation and shortcut inventory are CLI adapters; assessment and downstream
+authoring remain specialist-assisted. This path has local/mocked coverage, **not a
+live existing-data reference run**. Resume `setup-lakehouse` after a timeout; it
+retains create intent/operation/identity and never blindly resubmits an ambiguous create.
+An existing lakehouse without this run's creation intent is rejected.
 
 To include Planning:
 
@@ -179,6 +337,8 @@ python -m demo_accelerator complete --run-dir .demo-runs\customer-001 --gate sto
 
 `complete` is an **operator attestation**, not automated verification or a deployment.
 Data-build can complete only through its successful durable notebook job.
+In existing mode, lakehouse-setup completes only through `setup-lakehouse`;
+shortcuts and data-readiness require their specific inventory and assessment evidence.
 Review evidence kinds as well as `status.demo_ready`.
 
 Runs are ignored by Git and can hold operational IDs and notes. Never put tokens,

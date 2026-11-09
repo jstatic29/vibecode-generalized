@@ -8,7 +8,7 @@ from contextlib import contextmanager
 from datetime import datetime, timezone
 from pathlib import Path
 
-from .config import DemoError, digest, validate
+from .config import DemoError, digest, existing_mode, validate
 
 
 def now():
@@ -55,7 +55,8 @@ def manifest(root):
 
 
 def initialize(root, config):
-    gates = ["story", "design", "data-build", "fabric-iq"]
+    gates = (["lakehouse-setup", "shortcuts", "data-readiness", "story", "design", "fabric-iq"]
+             if existing_mode(config) else ["story", "design", "data-build", "fabric-iq"])
     if config["features"]["semantic_model"]:
         gates.append("semantic-model")
     if config["features"]["planning"]:
@@ -87,6 +88,17 @@ def read(root):
             evidence = root / item["evidence"]
             if not evidence.is_file() or hashlib.sha256(evidence.read_bytes()).hexdigest() != item["evidence_sha256"]:
                 raise DemoError(f"Evidence changed or disappeared for {gate}")
+    inventory = state["resources"].get("shortcut_inventory")
+    if inventory:
+        evidence = root / inventory["evidence"]
+        if (not evidence.is_file()
+                or hashlib.sha256(evidence.read_bytes()).hexdigest() != inventory["sha256"]):
+            raise DemoError("Shortcut inventory evidence changed or disappeared")
+    for approval in state["resources"].get("sql_plans", {}).values():
+        evidence = root / approval["evidence"]
+        if (not evidence.is_file()
+                or hashlib.sha256(evidence.read_bytes()).hexdigest() != approval["sha256"]):
+            raise DemoError("SQL plan approval evidence changed or disappeared")
     return config, state
 
 
@@ -114,17 +126,25 @@ def approve(root, gate, note):
         raise DemoError(f"{gate} is already {state['gates'][gate]['status']}")
     if not note.strip():
         raise DemoError("An explicit approval note is required")
-    if gate == "story" and not config.get("research", {}).get("industry_confirmed"):
+    research_gate = gate == "story" or (existing_mode(config) and gate == "lakehouse-setup")
+    if research_gate and not config.get("research", {}).get("industry_confirmed"):
         raise DemoError("Research/industry is unconfirmed. Update intake and generate a new run before approval.")
-    if gate == "story" and config["version"] == 2:
+    if research_gate and config["version"] == 2:
         research = config.get("research", {})
         if not research.get("notes", "").strip() or not research.get("references"):
-            raise DemoError("Customer proposals need research notes and cited public sources before story approval")
+            raise DemoError("Customer proposals need research notes and cited public sources "
+                            f"before {gate} approval")
     state["gates"][gate] = {"status": "approved", "approved_at": now(), "note": note}
     audit(root, state, "approve", gate, note=note)
 
 
 REQUIRED_CHECKS = {
+    "shortcuts": ["manual_shortcuts_created", "targets_reviewed", "source_read_only_verified",
+                  "runtime_identities_reviewed", "sql_tables_visible"],
+    "data-readiness": ["scope_and_scan_budget_respected", "schema_and_grains_verified",
+                       "keys_and_relationships_verified", "dates_and_units_verified",
+                       "sensitivity_and_disclosure_approved", "metric_mappings_approved",
+                       "timestamped_baseline_reconciled", "freshness_and_drift_policy_reviewed"],
     "story": ["audience_fit", "assumptions_reviewed", "public_sources_reviewed"],
     "design": ["scope_reviewed", "target_approved", "capacity_and_features_reviewed"],
     "fabric-iq": ["sql_endpoint_reconciled", "ontology_readback", "graph_properties_and_edges",
@@ -140,10 +160,12 @@ REQUIRED_CHECKS = {
 
 
 def complete(root, gate, report):
-    _, state = read(root)
+    config, state = read(root)
     require_gate(state, gate, approved=True)
     if gate == "data-build":
         raise DemoError("data-build can only complete from a successful durable notebook job")
+    if gate == "lakehouse-setup":
+        raise DemoError("lakehouse-setup can only complete from its successful deployment command")
     checks = report.get("checks", {})
     if not isinstance(checks, dict):
         raise DemoError("Evidence checks must be an object")
@@ -158,6 +180,9 @@ def complete(root, gate, report):
         raise DemoError("Evidence needs at least one source, resource link or verification artifact reference")
     if any(not isinstance(ref, str) or not ref.strip() for ref in report["references"]):
         raise DemoError("Evidence references must be nonempty strings")
+    if existing_mode(config):
+        from .existing_data import validate_evidence
+        validate_evidence(config, state, gate, report, root)
     evidence = {"kind": "operator-attestation", "recorded_at": now(), **report}
     # Caller cannot disguise an attestation as an automated verification.
     evidence["kind"] = "operator-attestation"

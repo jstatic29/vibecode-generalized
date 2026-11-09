@@ -79,20 +79,21 @@ def validate_common(value):
     for source in sources:
         _text(source, "source description", 300)
     scope = value.get("scope")
-    for key, lower, upper in [
-        ("months", 3 if value["version"] == 1 else 1, 24), ("seed", 0, 2147483647),
-    ]:
-        n = scope.get(key)
-        if type(n) is not int or not lower <= n <= upper:
-            raise DemoError(f"scope.{key} must be an integer from {lower} to {upper}")
-    try:
-        end = date.fromisoformat(scope["end_date"])
-        if end.isoformat() != scope["end_date"]:
-            raise ValueError("Use YYYY-MM-DD")
-        if end.year * 12 + end.month - scope["months"] < 12:
-            raise ValueError("Date window precedes year 1")
-    except (ValueError, KeyError, TypeError) as exc:
-        raise DemoError("scope.end_date must be an ISO date (YYYY-MM-DD)") from exc
+    if not existing_mode(value):
+        for key, lower, upper in [
+            ("months", 3 if value["version"] == 1 else 1, 24), ("seed", 0, 2147483647),
+        ]:
+            n = scope.get(key)
+            if type(n) is not int or not lower <= n <= upper:
+                raise DemoError(f"scope.{key} must be an integer from {lower} to {upper}")
+        try:
+            end = date.fromisoformat(scope["end_date"])
+            if end.isoformat() != scope["end_date"]:
+                raise ValueError("Use YYYY-MM-DD")
+            if end.year * 12 + end.month - scope["months"] < 12:
+                raise ValueError("Date window precedes year 1")
+        except (ValueError, KeyError, TypeError) as exc:
+            raise DemoError("scope.end_date must be an ISO date (YYYY-MM-DD)") from exc
     features = value.get("features")
     _keys(features, ["semantic_model", "planning", "app"], "features")
     for key in ("semantic_model", "planning", "app"):
@@ -123,12 +124,14 @@ def validate_common(value):
 
 def validate(value):
     _keys(value, ["version", "customer", "audience", "scenario", "sources", "scope",
-                  "features", "deployment", "research", "proposal"], "configuration")
+                  "features", "deployment", "research", "proposal", "data_mode", "existing_data"], "configuration")
     if type(value.get("version")) is not int or value["version"] not in (1, 2):
         raise DemoError("version must be 1 or 2")
     scope = value.get("scope")
     if value["version"] == 2:
         return validate_brief(value)
+    if "data_mode" in value or "existing_data" in value:
+        raise DemoError("Data mode selection requires a version-2 brief")
     if "proposal" in value:
         raise DemoError("Legacy scenario configurations do not support proposal; use version 2")
     if not isinstance(value.get("scenario"), str) or value["scenario"] not in SCENARIOS:
@@ -149,9 +152,17 @@ def validate(value):
 def validate_brief(value):
     """A brief can precede a proposed industry and schema."""
     _keys(value, ["version", "customer", "audience", "sources", "scope", "features",
-                  "deployment", "research", "proposal"], "configuration")
+                  "deployment", "research", "proposal", "data_mode", "existing_data"], "configuration")
     if type(value.get("version")) is not int or value["version"] != 2:
         raise DemoError("version must be 2")
+    mode = value.get("data_mode", "synthetic")
+    if mode not in ("synthetic", "existing-lakehouse"):
+        raise DemoError("data_mode must be synthetic or existing-lakehouse")
+    if existing_mode(value):
+        from .existing_data import validate_existing
+        return validate_existing(value)
+    if "existing_data" in value:
+        raise DemoError("existing_data is only valid for existing-lakehouse mode")
     scope = value.get("scope")
     _keys(scope, ["months", "seed", "end_date", "max_rows_per_table", "max_total_rows"], "scope")
     validate_common(value)
@@ -167,9 +178,13 @@ def validate_brief(value):
     return value
 
 
-def brief():
+def existing_mode(config):
+    return config.get("data_mode", "synthetic") == "existing-lakehouse"
+
+
+def brief(data_mode="synthetic"):
     legacy = example()
-    return {
+    result = {
         "version": 2, "customer": legacy["customer"], "audience": legacy["audience"],
         "sources": ["Describe the existing systems and the kinds of data they hold"],
         "scope": {"months": 12, "seed": 42, "end_date": "2026-09-30",
@@ -177,9 +192,22 @@ def brief():
         "features": legacy["features"], "deployment": legacy["deployment"],
         "research": legacy["research"], "proposal": None,
     }
+    if data_mode == "existing-lakehouse":
+        result.update(
+            data_mode=data_mode,
+            scope={"max_query_seconds": 60, "max_result_rows": 100,
+                   "baseline_max_age_hours": 24},
+            existing_data={"tables": []},
+        )
+        result["deployment"]["lakehouse_name"] = "lh_demo_existing_customer"
+    elif data_mode != "synthetic":
+        raise DemoError("Unknown data mode")
+    return result
 
 
 def require_proposal(config):
+    if existing_mode(config):
+        raise DemoError("Existing-data runs use assessed mappings, not synthetic proposal artifacts")
     if config["version"] == 2 and config.get("proposal") is None:
         raise DemoError("Research the customer and propose a use case and synthetic schema first. "
                         "Run plan for the Copilot research brief; a website alone does not choose a schema.")

@@ -1,5 +1,12 @@
 # Ontology, graph and data agent
 
+For existing-lakehouse runs, require completed shortcuts/data-readiness/story/design
+gates and use the accepted assessment as the shared analytical model. Bind/select
+only approved shortcuts in the created demo lakehouse, not the original source
+item. Recheck effective permissions and timestamped baselines before writes/
+publication; materialization can copy data and needs disclosure approval.
+Do not label existing data synthetic or invent unsupported keys/relationships.
+
 ## Ontology authoring and native repair
 
 Load current `fabriciq-ontology-cli` authoring references before writes. The

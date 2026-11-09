@@ -7,7 +7,7 @@ import sys
 from pathlib import Path
 
 from .artifacts import generate, scenario_contract
-from .config import DemoError, SCENARIOS, brief, example, load
+from .config import DemoError, SCENARIOS, brief, example, existing_mode, load
 from .discovery import research_brief
 from .fabric import Client, deploy_data, preflight
 from .state import REQUIRED_CHECKS, approve, complete, initialize, locked, read
@@ -20,34 +20,48 @@ def parser():
     init.add_argument("--scenario", choices=SCENARIOS,
                       help="Optional legacy regression example; omit for an industry-independent brief")
     init.add_argument("--output", required=True, type=Path)
+    init.add_argument("--data-mode", choices=["synthetic", "existing-lakehouse"], default="synthetic")
     plan = commands.add_parser("plan", help="Validate and preview scenario; no writes to Fabric")
     plan.add_argument("config", type=Path)
     build = commands.add_parser("generate", help="Generate an immutable local run")
     build.add_argument("config", type=Path)
     build.add_argument("--run-dir", required=True, type=Path)
-    for name in ("status", "preflight", "deploy-data", "evidence-template", "approve", "complete"):
+    for name in ("status", "preflight", "deploy-data", "setup-lakehouse", "inspect-shortcuts",
+                 "sql-preflight", "sql-plan", "approve-sql-plan", "run-sql-plan",
+                 "evidence-template", "approve", "complete"):
         cmd = commands.add_parser(name)
         cmd.add_argument("--run-dir", required=True, type=Path)
+        if name == "sql-preflight":
+            cmd.add_argument("--expected-login", required=True)
+        if name in {"sql-plan", "approve-sql-plan", "run-sql-plan"}:
+            cmd.add_argument("--plan", required=True, type=Path)
+        if name == "approve-sql-plan":
+            cmd.add_argument("--note", required=True)
         if name in {"approve", "complete", "evidence-template"}:
             cmd.add_argument("--gate", required=True)
         if name == "approve":
             cmd.add_argument("--note", required=True)
         if name == "complete":
             cmd.add_argument("--evidence", required=True, type=Path)
-        if name == "deploy-data":
+        if name in {"deploy-data", "setup-lakehouse"}:
             cmd.add_argument("--timeout", type=int, default=1800)
     return result
 
 
 def execute(args):
     if args.command == "init":
+        if args.scenario and args.data_mode != "synthetic":
+            raise DemoError("Legacy scenarios cannot use existing-lakehouse mode")
         args.output.parent.mkdir(parents=True, exist_ok=True)
         with args.output.open("x", encoding="utf-8") as stream:
-            json.dump(example(args.scenario) if args.scenario else brief(), stream, indent=2)
+            json.dump(example(args.scenario) if args.scenario else brief(args.data_mode), stream, indent=2)
             stream.write("\n")
         return {"intake": str(args.output), "next": "Edit customer, sources, research and approved target"}
     if args.command == "plan":
         config = load(args.config)
+        if existing_mode(config):
+            from .existing_data import plan
+            return plan(config)
         if config["version"] == 2 and config.get("proposal") is None:
             return research_brief(config)
         if config["version"] == 2:
@@ -67,22 +81,47 @@ def execute(args):
                 "fabric_writes": False}
     if args.command == "generate":
         config = load(args.config)
+        if existing_mode(config):
+            from .existing_data import require_tables
+            require_tables(config)
         args.run_dir.mkdir(parents=True, exist_ok=False)
         expected = generate(config, args.run_dir)
         state = initialize(args.run_dir, config)
         return {"run_dir": str(args.run_dir), "config_hash": state["config_hash"],
                 "gates": list(state["gates"]), "expected": expected,
-                "next": "Review OPERATOR.md and approve story; no Fabric writes have occurred"}
+                "next": ("Review OPERATOR.md and approve lakehouse-setup; no Fabric writes have occurred"
+                         if existing_mode(config) else
+                         "Review OPERATOR.md and approve story; no Fabric writes have occurred")}
     with locked(args.run_dir):
         config, state = read(args.run_dir)
         if args.command == "status":
             return {"config_hash": state["config_hash"], "gates": state["gates"],
                     "resources": state["resources"],
                     "demo_ready": all(g["status"] == "complete" for g in state["gates"].values())}
+        if args.command in {"sql-preflight", "sql-plan", "approve-sql-plan", "run-sql-plan"}:
+            from .sql_runner import approve_plan, preview, run
+            if args.command == "sql-preflight":
+                return run(args.run_dir, expected_login=args.expected_login)
+            plan = json.loads(args.plan.read_text(encoding="utf-8"))
+            if args.command == "sql-plan":
+                return preview(args.run_dir, plan)
+            if args.command == "approve-sql-plan":
+                return approve_plan(args.run_dir, plan, args.note)
+            return run(args.run_dir, plan=plan)
         if args.command == "evidence-template":
             if args.gate not in state["gates"] or args.gate not in REQUIRED_CHECKS:
                 raise DemoError("Unknown, disabled or machine-only gate")
-            return {"config_hash": state["config_hash"], "notes": "",
+            extra = {}
+            if existing_mode(config):
+                from .existing_data import evidence_fields
+                extra = evidence_fields(config, args.gate)
+                if "destination" in extra:
+                    extra["destination"] = {key: state["resources"].get(key)
+                                            for key in extra["destination"]}
+                if args.gate == "shortcuts":
+                    extra["inventory_sha256"] = state["resources"].get(
+                        "shortcut_inventory", {}).get("sha256")
+            return {"config_hash": state["config_hash"], "notes": "", **extra,
                     "references": [], "checks": {key: False for key in REQUIRED_CHECKS[args.gate]}}
         if args.command == "approve":
             approve(args.run_dir, args.gate, args.note)
@@ -94,12 +133,21 @@ def execute(args):
             complete(args.run_dir, args.gate, report)
             return {"gate": args.gate, "status": "complete", "verification": "operator-attestation"}
         if args.command == "preflight":
-            return {"workspace": preflight(config, Client()), "fabric_writes": False,
+            return {"workspace": preflight(config, Client(
+                skill="onelake-catalog-cli" if existing_mode(config) else "spark-cli")), "fabric_writes": False,
                     "remaining": "Operator must confirm IQ/Rayfin/Planning feature availability and permissions"}
         if args.command == "deploy-data":
             if args.timeout < 0:
                 raise DemoError("timeout must be nonnegative")
             return deploy_data(args.run_dir, args.timeout)
+        if args.command == "setup-lakehouse":
+            from .existing_data import setup_lakehouse
+            if args.timeout < 0:
+                raise DemoError("timeout must be nonnegative")
+            return setup_lakehouse(args.run_dir, args.timeout)
+        if args.command == "inspect-shortcuts":
+            from .existing_data import inspect_shortcuts
+            return inspect_shortcuts(args.run_dir)
     raise DemoError("Unrecognized command")
 
 

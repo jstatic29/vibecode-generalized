@@ -11,7 +11,7 @@ import urllib.request
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
-from .config import DemoError
+from .config import DemoError, existing_mode
 from .state import audit, now, read, require_gate, save
 
 
@@ -24,8 +24,9 @@ class NoRedirect(urllib.request.HTTPRedirectHandler):
 
 
 class Client:
-    def __init__(self):
+    def __init__(self, skill="spark-cli"):
         self.opener = urllib.request.build_opener(NoRedirect())
+        self.skill = skill
 
     def request(self, method, path, body=None):
         url = urllib.parse.urljoin(API + "/", path)
@@ -47,7 +48,7 @@ class Client:
             url, method=method,
             data=json.dumps(body).encode("utf-8") if body is not None else None,
             headers={"Authorization": f"Bearer {auth.stdout.strip()}",
-                     "Content-Type": "application/json", "x-ms-fabric-skill": "spark-cli"},
+                     "Content-Type": "application/json", "x-ms-fabric-skill": self.skill},
         )
         try:
             with self.opener.open(request, timeout=60) as response:
@@ -112,7 +113,7 @@ def preflight(config, client):
     return workspace
 
 
-def ensure_item(client, root, state, workspace_id, item_type, name, body, timeout):
+def ensure_item(client, root, state, workspace_id, item_type, name, body, timeout, require_new=False):
     resources = state["resources"]
     key = item_type.lower()
     path = f"/v1/workspaces/{workspace_id}/items"
@@ -125,6 +126,9 @@ def ensure_item(client, root, state, workspace_id, item_type, name, body, timeou
     items = [row for row in client.listing(path) if row.get("type") == item_type]
     existing = unique(items, name, item_type)
     if existing:
+        if require_new and not resources.get(f"{key}_attempted"):
+            raise DemoError(f"{item_type} already exists without this run's creation intent; "
+                            "choose a new dedicated demo lakehouse name")
         # A notebook with our unique name is reusable only after a recorded creation attempt.
         if item_type == "Notebook" and not resources.get(f"{key}_attempted"):
             raise DemoError("Notebook name already exists without this run's creation intent; refusing to reuse")
@@ -153,7 +157,7 @@ def ensure_item(client, root, state, workspace_id, item_type, name, body, timeou
     else:
         raise DemoError(f"Unexpected {item_type} create response: HTTP {status}")
     save(Path(root) / "state.json", state)
-    return ensure_item(client, root, state, workspace_id, item_type, name, body, timeout)
+    return ensure_item(client, root, state, workspace_id, item_type, name, body, timeout, require_new)
 
 
 def poll_operation(client, url, timeout):
@@ -172,6 +176,9 @@ def poll_operation(client, url, timeout):
 
 def deploy_data(root, timeout=1800, client=None):
     config, state = read(root)
+    if existing_mode(config):
+        raise DemoError("deploy-data is prohibited in existing-lakehouse mode; use setup-lakehouse "
+                        "then manual shortcuts and read-only assessment")
     if state["gates"]["data-build"]["status"] == "complete":
         return {"status": "already-complete", "job_id": state["resources"]["job_id"]}
     require_gate(state, "data-build", approved=True)

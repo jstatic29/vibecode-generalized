@@ -10,6 +10,21 @@ customer data or tokens. Operational IDs belong only in the run's private local
 evidence, not in this portable skill. An ignored directory is not a security
 boundary. Preserve older evidence rather than rewriting the timeline.
 
+Existing-data mode permits owner-approved metadata and aggregate baselines, never
+raw records or sensitive disclosures. setup-lakehouse records creation intent,
+operation and destination identity. inspect-shortcuts saves hashed machine
+inventory separately from owner permission attestation. shortcuts evidence must
+match that inventory; data-readiness needs actual table/metric assessments and a
+recent timezone-qualified observation. Neither a checkbox nor shortcut existence
+proves read-only ACLs. Ongoing drift/freshness checks are specialist checkpoints.
+
+For the opt-in SQL runner, preserve hashed sql-plan approval separately from
+machine sql-execution receipts. Request intent precedes each source read; failed
+or timed-out receipts retain uncertainty and never complete a gate or trigger
+automatic retries. Identity-only preflight is not aggregate/readiness evidence.
+Exact decimal outputs are stored as strings. Driver timeout configuration does
+not establish that a remote statement was cancelled.
+
 ## Evidence classification
 
 | Kind | What it establishes |

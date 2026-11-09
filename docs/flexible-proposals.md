@@ -15,6 +15,28 @@ internal systems, sensitive policies or actual operational problems.
 
 ## Sequence
 
+This sequence is the default **synthetic** branch. Version-2 briefs can instead
+select `data_mode: "existing-lakehouse"`; see
+[Existing-data option](../README.md#existing-data-option) and the companion
+[discovery/data reference](../.github/skills/fabric-demo-companion/references/discovery-and-data.md).
+The alternative creates a dedicated lakehouse, stops for manual individual table
+shortcuts and effective source-read-only permission verification, then assesses
+only approved metadata/aggregates. It does not reinterpret existing tables as
+generator recipes, generate synthetic facts or label real data synthetic.
+`proposal` stays null; the accepted data-readiness assessment supplies one shared
+analytical model and timestamped baselines to downstream specialists.
+Source mutation is prohibited; shortcuts alone do not enforce that boundary.
+
+For automated assessment with a stricter timeout than the SQL MCP exposes,
+the operator may explicitly select the optional project-owned ODBC runner.
+See [timeout-controlled SQL runner](../README.md#optional-timeout-controlled-sql-runner).
+It accepts hash-approved structured metadata, single-table aggregate and count-only
+relationship plans, not
+arbitrary SQL or raw records. It preserves immutable runs, verifies execution
+identity and shortcut drift, and retains per-request evidence. It does not infer
+relationships, enforce a byte-scan quota, prove remote timeout cancellation or
+complete readiness automatically.
+
 1. `python -m demo_accelerator init --output intake.json` writes a version-2 customer
    brief with `proposal: null`; no industry is preselected.
 2. Fill the customer, audience, sources, optional features and workload budget.

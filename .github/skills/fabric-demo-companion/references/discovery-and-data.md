@@ -20,7 +20,97 @@ unsupported distributions/relationships through an explicit tested extension;
 never silently approximate them. Version-1 healthcare/manufacturing examples are
 opt-in regression fixtures, not a default model.
 
-## Local preparation
+## Choose the data path
+
+Offer synthetic (default) or existing-lakehouse data before generation. Synthetic
+uses the recipes and notebook below; existing mode does not generate replacements
+or require column schemas/generator code from the presenter. Public research and
+use-case selection still precede generation. Record notes/citations and industry
+confirmation in intake; final story/design follow assessment.
+
+### Existing-lakehouse path
+
+Use `init --data-mode existing-lakehouse`. Copilot helps fill
+`existing_data.tables` with individual shortcut aliases and purposes,
+`scope.max_query_seconds`, `max_result_rows` and `baseline_max_age_hours`, plus
+approved workspace/new lakehouse/demo_ schema. Keep `proposal: null`. `plan`
+returns discovery/assessment guidance; `generate` freezes a distinct work package
+with no synthetic notebook, previews or expected.json.
+
+1. Approve lakehouse-setup, then run setup-lakehouse. Only a NEW dedicated,
+   schema-enabled demo lakehouse is created; save/reuse its exact identity.
+2. STOP for the operator to create individual internal OneLake table shortcuts
+   under Tables in the approved demo_ schema of that CREATED lakehouse. No
+   whole-schema shortcuts, direct source attachment or automatic copies.
+3. Approve shortcuts, run inspect-shortcuts and review the exact paginated source
+   target inventory. Fill the evidence template with its inventory_sha256 and
+   matching targets plus owner permission/SQL-visibility evidence; complete shortcuts.
+4. Approve data-readiness BEFORE metadata or aggregate assessment. Load current
+   OneLake and SQL specialist guidance. Discover columns/types, grains, keys and
+   duplicates/nulls, relationships/orphans, date coverage/roles, units and sensitivity.
+   Agree scan/partition/time-window budgets; apply timeout and result limits.
+5. Propose only scenarios supported by actual data; ask the owner to approve
+   metrics/mappings. Missing tables or measures are gaps, not invented facts.
+   Save timestamped aggregate baselines with query references, filter/grain,
+   source version/drift limitations and disclosure approval. Complete data-readiness
+   using its evidence template, then story/design, then common downstream gates.
+
+**Shortcuts are not a read-only security boundary.** Verify effective source
+permissions for operator, services/connections and delegated SQL/Direct Lake item
+owners; do not assume viewer identity passthrough. If they can mutate targets,
+stop and obtain read-only execution identities; never test with writes. Inventory
+readback proves paths/identities only, not ACLs or SQL visibility. No SELECT *,
+raw previews/exports, source DDL/DML, description edits through shortcuts,
+optimize/vacuum or automatic cleanup. Sensitive aggregates still need approval.
+
+#### Timeout-controlled execution option
+
+The installed SQL specialist's MCP is primary. If it cannot enforce the run's
+timeout, ask for explicit opt-in to this repository's optional ODBC runner;
+do not silently switch transports, relax limits or edit an immutable run.
+This project-owned route needs ODBC Driver 18 and optional `.[sql]`, not new
+Fabric resources. Keep sign-in interactive and source permissions read-only.
+
+After shortcuts completion, `sql-preflight --expected-login <approved-UPN>`
+verifies only SQL login/database with the configured timeout; no source queries.
+Prepare a structured plan outside generated artifacts, then `sql-plan --plan`
+to preview it. Obtain data-readiness approval plus exact-plan/scan/disclosure
+approval before `approve-sql-plan --plan --note` and `run-sql-plan --plan`.
+All commands also take `--run-dir`. See README's optional runner section for
+the plan schema. Plan approvals are hash-bound; changes require fresh approval.
+Reauthentication must not silently change the expected identity.
+
+Only allowlisted column metadata, single-table aggregates and fixed count-only
+relationship checks are supported, with parameterized filters and quoted/live-checked
+columns. Relationship plans identify child/parent columns and an approved parent
+table; matching live types are required. EXISTS avoids parent-duplicate fanout;
+null/orphan and parent distinct counts are separate. No arbitrary SQL, raw rows,
+grouping, general joins or automatic model inference. Unsupported business-grain
+or fiscal checks remain specialist work; disclose gaps.
+The runner rechecks shortcut target drift, enforces per-statement ODBC timeout
+and rejects result overflow. Scan budgets are owner-reviewed, not a byte quota.
+Timeout requests cancellation but does not prove remote termination; inspect
+saved requests, never blindly retry. No automatic readiness gate completion.
+Distinguish local/mock coverage, live identity preflight, actual live results
+and timeout-cancellation verification; none substitutes for the others.
+
+Source model/metrics live in accepted `evidence/data-readiness.json`, shared by
+ontology, graph, agent, model and app. Read downstream-handoff.md; do not call
+deploy-data. Curated local outputs require separate approval outside shortcut
+paths. Model Import, graph materialization and publication can copy/expose data;
+source read-only does not authorize them. App/Planning writes remain separate.
+
+CLI enforces freshness at readiness acceptance, not continuously. Recheck schema,
+permissions, shortcut targets and baseline age/drift before publication/rehearsal;
+retain old evidence and record new reconciliations outside immutable artifacts.
+One live Lakehouse run verified destination setup, exact shortcut inventory and
+approved column-metadata execution through the opt-in ODBC runner. Configured
+timeout and identity checks passed, but remote timeout cancellation, aggregate
+readiness and Warehouse-source execution remain unverified. Product references:
+[shortcuts/security](https://learn.microsoft.com/en-us/fabric/onelake/onelake-shortcuts)
+and [inventory API](https://learn.microsoft.com/en-us/rest/api/fabric/core/onelake-shortcuts/list-shortcuts).
+
+## Synthetic local preparation
 
 Run from the repository root; no dependency installation is needed:
 

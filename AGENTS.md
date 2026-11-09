@@ -1,6 +1,7 @@
 # Working on this accelerator
 
-Read README.md before execution. This is a private, synthetic-data demo toolkit.
+Read README.md before execution. This is a private demo toolkit, synthetic by
+default with an explicit read-only existing-lakehouse option.
 Do not touch the original healthcareindustry2 project or reuse its resource IDs.
 Do not copy its generated envelopes, credentials, node_modules or runtime state.
 
@@ -14,7 +15,9 @@ approval or provide additional deployment adapters.
 
 - Website + audience + source descriptions inform a proposed scenario, not claims
   about actual customer systems or problems. Research public pages, cite sources
-  and ask the operator to approve assumptions. Do not ingest customer data.
+  and ask the operator to approve assumptions. Do not ingest customer records.
+  Existing-data mode permits approved metadata and aggregate assessment only,
+  through manual shortcuts in a new accelerator-created demo lakehouse.
 - Default to version-2 customer briefs with no selected industry or schema.
   Follow docs/flexible-proposals.md: research website, audience and described sources,
   suggest 2-3 use cases and recommend a synthetic model for user selection/approval.
@@ -29,6 +32,17 @@ approval or provide additional deployment adapters.
   rows, transformations and estimated capacity/time, not whether there are 10 or 25 tables.
 - Keep core data small and deterministic. One scenario specification must drive
   metric semantics across SQL, ontology, graph, agent, app and optional semantic model.
+  For existing data the accepted data-readiness assessment replaces deterministic
+  expectations: actual grains/keys, approved mappings and timestamped baselines.
+- Select synthetic (default) or existing-lakehouse mode before generation. Existing
+  mode requires lakehouse-setup -> shortcuts -> data-readiness before story/design
+  and common downstream gates. Never run synthetic notebooks/deploy-data there.
+  Stop for the operator to create individual table shortcuts; inspect exact targets.
+  Shortcuts do not enforce read-only: verify effective source permissions for all
+  execution identities, including delegated owners. If unavailable, stop; no write probe.
+  No source/shortcut-target DDL/DML, description edits, maintenance, record previews
+  or copies. Apply query/scan/disclosure limits and recheck freshness/drift before
+  publication. Curated outputs need separate approval outside shortcut paths.
 - Run `python -m demo_accelerator` from the repository root. Read each run's
   OPERATOR.md. No dependency installation is needed for local commands/tests.
 - Respect explicit stop gates. Never auto-approve, invent evidence or report a
@@ -52,8 +66,15 @@ approval or provide additional deployment adapters.
 Load current installed skills before the phase; verify current API/CLI support.
 Historical product limitations are leads to recheck, not immutable platform facts.
 
-- **Spark**: spark-cli authoring; inspect the generated notebook. The CLI currently
-  automates only this phase. Live execution is still required to validate the adapter.
+- **Spark**: spark-cli authoring; inspect the generated synthetic notebook.
+  Existing-data setup/inventory uses current OneLake guidance; read-only SQL
+  assessment and downstream authoring are specialist-assisted, not automatic.
+  Full existing-data assessment/downstream acceptance still needs live verification.
+  The specialist SQL MCP is primary. With explicit operator opt-in, the toolkit's
+  optional ODBC runner can enforce a timeout MCP does not expose. Use sql-preflight
+  for identity only; approve data-readiness and the exact hashed sql-plan before
+  run-sql-plan. No arbitrary SQL/raw rows; scan/disclosure budgets require review.
+  A driver timeout is not proof of remote cancellation. Keep generated runs intact.
 - **Ontology**: fabriciq-ontology-cli authoring/consumption. Generation-2 TMDL,
   stable lineage tags, preserve portal bindings, diff/readback. Manual portal
   attachment/materialization where APIs are blocked. Verify properties and edges

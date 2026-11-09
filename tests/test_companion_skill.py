@@ -62,6 +62,30 @@ class CompanionSkillTests(unittest.TestCase):
         self.assertTrue(all(value is None for value in template["target"].values()))
         self.assertIn("not CLI gate evidence", template["purpose"])
 
+    def test_existing_data_branch_preserves_manual_shortcut_and_permission_gates(self):
+        entry = (SKILL / "SKILL.md").read_text(encoding="utf-8")
+        self.assertIn("synthetic (default) or existing-lakehouse", entry)
+        text = (SKILL / "references" / "discovery-and-data.md").read_text(encoding="utf-8")
+        checkpoints = [
+            "1. Approve lakehouse-setup",
+            "2. STOP for the operator",
+            "3. Approve shortcuts, run inspect-shortcuts",
+            "4. Approve data-readiness BEFORE",
+            "5. Propose only scenarios supported by actual data",
+        ]
+        offsets = [text.index(checkpoint) for checkpoint in checkpoints]
+        self.assertEqual(offsets, sorted(offsets))
+        for requirement in ("Shortcuts are not a read-only security boundary",
+                            "never test with writes", "No SELECT *", "no synthetic notebook"):
+            self.assertIn(requirement, text)
+
+    def test_sql_runner_is_opt_in_and_does_not_replace_assessment_gates(self):
+        text = (SKILL / "references" / "discovery-and-data.md").read_text(encoding="utf-8")
+        for requirement in ("explicit opt-in", "sql-preflight", "approve-sql-plan",
+                            "No arbitrary SQL", "does not prove remote termination",
+                            "No automatic readiness gate completion"):
+            self.assertIn(requirement, text)
+
 
 if __name__ == "__main__":
     unittest.main()

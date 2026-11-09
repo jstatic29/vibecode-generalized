@@ -4,6 +4,14 @@ These are execution requirements and uncompleted boundaries, not claims that
 the current finance build has deployed these features. Follow feature selection
 and gate prerequisites; do not broaden the default few-hour path speculatively.
 
+For existing-lakehouse mode, consume the approved data-readiness model and
+timestamped SQL baselines through the created lakehouse's approved shortcuts.
+Recheck schema, targets, effective runtime/delegated-owner permissions and
+freshness before refresh/publication/rehearsal. Import and graph materialization
+can copy source data; source read-only permission does not approve that exposure.
+Curated outputs need separate approval outside shortcut paths. Never put app or
+Planning writes on shortcut targets or label existing data synthetic.
+
 ## Semantic model
 
 Load installed `semantic-model-authoring` and inspect actual deployed schema.

@@ -5,7 +5,7 @@ import json
 from pathlib import Path
 
 from . import data
-from .config import SCENARIOS, digest, require_proposal
+from .config import SCENARIOS, digest, existing_mode, require_proposal
 
 
 def write_json(path, value):
@@ -50,6 +50,7 @@ def scenario_contract(config):
 
 
 def ontology_contract(config):
+    require_proposal(config)
     if config["version"] == 2:
         from .flexible_artifacts import ontology_contract as flexible
         return flexible(config)
@@ -99,6 +100,7 @@ def ontology_contract(config):
 
 
 def analytical_sql(config):
+    require_proposal(config)
     if config["version"] == 2:
         from .flexible_artifacts import analytical_sql as flexible
         return flexible(config)
@@ -137,6 +139,7 @@ LEFT JOIN risk k ON k.region_id=d.region_id;
 
 
 def notebook(config):
+    require_proposal(config)
     if config["version"] == 2:
         from .flexible_artifacts import notebook as flexible
         return flexible(config)
@@ -261,6 +264,7 @@ print(json.dumps({"config_hash": CONFIG_HASH, "verified": True, "expected": expe
 
 
 def semantic_contract(config):
+    require_proposal(config)
     if config["version"] == 2:
         from .flexible_artifacts import semantic_contract as flexible
         return flexible(config)
@@ -313,6 +317,9 @@ def semantic_contract(config):
 
 
 def generate(config, root):
+    if existing_mode(config):
+        from .existing_data import generate as existing
+        return existing(config, Path(root), write_json)
     root = Path(root)
     require_proposal(config)
     if config["version"] == 2:
