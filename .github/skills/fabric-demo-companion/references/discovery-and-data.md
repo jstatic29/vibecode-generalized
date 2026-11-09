@@ -48,7 +48,8 @@ with no synthetic notebook, previews or expected.json.
 4. Approve data-readiness BEFORE metadata or aggregate assessment. Load current
    OneLake and SQL specialist guidance. Discover columns/types, grains, keys and
    duplicates/nulls, relationships/orphans, date coverage/roles, units and sensitivity.
-   Agree scan/partition/time-window budgets; apply timeout and result limits.
+   Use the two-package assessment flow below; agree scan/partition/time-window
+   budgets and apply timeout and result limits.
 5. Propose only scenarios supported by actual data; ask the owner to approve
    metrics/mappings. Missing tables or measures are gaps, not invented facts.
    Save timestamped aggregate baselines with query references, filter/grain,
@@ -62,6 +63,70 @@ stop and obtain read-only execution identities; never test with writes. Inventor
 readback proves paths/identities only, not ACLs or SQL visibility. No SELECT *,
 raw previews/exports, source DDL/DML, description edits through shortcuts,
 optimize/vacuum or automatic cleanup. Sensitive aggregates still need approval.
+
+#### Two-package assessment flow
+
+Use this flow for both Lakehouse- and Warehouse-backed table shortcuts. It is
+Copilot/operator orchestration, not a new automatic profiler or notebook adapter.
+Do not repeat the development walkthrough's small approval round for every
+key, period or relationship query.
+
+1. **Metadata discovery package.** After shortcuts completion and data-readiness
+   approval, present one exact metadata-only plan for the approved aliases:
+   column names/types/nullability and supported structural metadata, with catalog
+   scope, timeout, result limits and disclosure boundaries. Obtain exact-plan
+   approval, execute automatically through the approved route and retain receipts.
+   No source records, business-value aggregates or inferred key guarantees.
+2. **Scenario-focused assessment package.** From observed metadata, propose the
+   minimum relevant facts/dimensions and explicitly exclude unrelated tables.
+   Present one reviewed package covering candidate grains/keys, null/duplicate
+   and relationship/orphan checks, date roles/coverage, period baselines, units,
+   negative/zero values, missing-value policy and metric definitions. Include the
+   exact queries, per-table/time-window/partition scan scope, timeout/result limits,
+   disclosure rules, execution identity and unsupported checks. Obtain exact-plan
+   approval before executing the package automatically. Full-history scans need
+   explicit justification/approval; result caps alone do not bound scanned data.
+
+Within an approved package, do not request permission for every query. Stop for
+failed checks, identity/target drift, timeout, unsupported operations or genuinely
+new scope/disclosure/cost decisions. A changed plan requires fresh approval; never
+use a broad "proceed" to approve unreviewed queries. Do not retry failed queries
+automatically. If discovery reveals a new necessary check, explain and approve
+the plan delta rather than rerunning completed checks or restarting the intake.
+
+Finish with **one consolidated readiness report**: selected/excluded tables,
+passed/failed/unknown checks, exact timestamped baselines and query references,
+metric/date/unit definitions, sensitivity, limitations, freshness/drift policy
+and remaining owner decisions. Explicitly excluded tables are not quality-certified;
+record their exclusion in every table entry required by the evidence template.
+Review observed findings and obtain acceptance before completing data-readiness.
+The two packages do not merge shortcut, readiness, story/design or downstream
+write/materialization/publication approvals.
+
+#### SQL default; notebooks by exception
+
+Prefer the destination Lakehouse SQL endpoint for scenario-focused relational
+checks and metric baselines, including Warehouse-backed shortcuts. It verifies
+the SQL experience relevant to the data agent. Use the specialist MCP by default,
+or the explicitly opted-in timeout-controlled runner below when appropriate.
+Check supported query kinds before approval; extend/test unsupported checks or
+use a supported specialist route, never silently skip them.
+
+Consider a submitted Spark notebook only for a concrete need such as
+Delta-specific metadata, distributed assessment or complex checks that SQL cannot
+efficiently support. Explain startup/capacity overhead and why it improves this
+assessment; obtain approval for reviewed code and scan/disclosure/compute scope.
+Load current Spark guidance, verify all runtime/delegated identities remain
+source-read-only, and persist submitted job IDs and results. No long-running
+interactive Livy, unapproved writes, persisted caches or copies of source records.
+A local timeout is not remote cancellation; resume the saved job, do not resubmit.
+Notebook execution is an optional specialist-assisted route, not an implemented
+accelerator assessment adapter.
+
+If both engines are used, share metric definitions, filters, date roles and
+disclosure boundaries. Spark results do not prove SQL synchronization, SQL security
+or agent access; retain destination SQL acceptance checks. Warehouse-source live
+validation remains separate from Lakehouse-source evidence.
 
 #### Timeout-controlled execution option
 

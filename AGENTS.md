@@ -75,6 +75,14 @@ Historical product limitations are leads to recheck, not immutable platform fact
   for identity only; approve data-readiness and the exact hashed sql-plan before
   run-sql-plan. No arbitrary SQL/raw rows; scan/disclosure budgets require review.
   A driver timeout is not proof of remote cancellation. Keep generated runs intact.
+  Follow the companion's two-package assessment flow: metadata discovery, then
+  one scenario-focused exact plan with keys/relationships, dates/quality and
+  baselines. Batch approval/execution within each package; stop for failures or
+  new scope, not every query. Explicitly exclude unrelated tables and consolidate
+  readiness findings for acceptance. SQL is default; submitted notebooks need a
+  concrete justification, reviewed code, source-read-only identities and separate
+  execution approval. No notebook assessment adapter is implemented; Spark success
+  does not replace destination SQL/agent-access checks.
 - **Ontology**: fabriciq-ontology-cli authoring/consumption. Generation-2 TMDL,
   stable lineage tags, preserve portal bindings, diff/readback. Manual portal
   attachment/materialization where APIs are blocked. Verify properties and edges

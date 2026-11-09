@@ -214,6 +214,23 @@ The CLI checks baseline age on readiness completion; ongoing freshness, source
 drift and permission checks before publication/rehearsal are specialist checkpoints,
 not an automatic monitor. Baselines are observations, not synthetic expected values.
 
+For repeatable assessment, use **two approval packages**, not a new prompt for
+each query: (1) approved-alias metadata discovery, then (2) one scenario-focused
+plan covering selected keys/relationships, date/quality checks and metric
+baselines, with exact queries and scan/disclosure limits. Execute approved
+packages automatically; stop for failures or new scope, and obtain fresh approval
+for plan changes. Explicitly exclude tables outside the story rather than fully
+profiling everything. Present one consolidated readiness report for acceptance.
+The existing shortcut/readiness and downstream approval gates remain unchanged.
+
+SQL is the default. Submitted Spark notebooks are an optional specialist-assisted
+route only when Delta-specific/distributed or complex checks justify startup and
+capacity costs; there is no notebook assessment adapter today. They require
+reviewed code, read-only runtime identities, approved scope and durable job IDs,
+never long-running interactive Livy or unapproved source copies/persisted caches.
+Notebook success does not replace SQL endpoint/agent-access checks. See the
+companion's [assessment flow and execution guidance](.github/skills/fabric-demo-companion/references/discovery-and-data.md#two-package-assessment-flow).
+
 #### Optional timeout-controlled SQL runner
 
 The specialist SQL MCP remains the default execution surface. When it cannot
