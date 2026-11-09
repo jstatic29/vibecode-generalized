@@ -63,6 +63,13 @@ table count. Document valid filter paths, grains, units, date roles, snapshot
 semantics and unsupported attribution. SQL source selection/instructions are
 not a security boundary or a replacement for source permissions.
 
+**Validated selection checkpoint:** when using the staging schema-element API,
+select each approved parent table explicitly, then apply its column selections.
+In the existing-data walkthrough, selecting columns alone left every table
+unselected in both API readback and the portal. Independently read back the exact
+selected table set AND each table's selected columns, including exclusions.
+Column-only readback is not evidence that the source is ready for agent queries.
+
 Use short source requests (below 1,000 characters), read-only aggregate responses,
 dimension joins and multi-dimensional examples. Validate each example in live
 SQL before staging; capture the agent validator separately. Avoid raw fact joins,
@@ -90,6 +97,12 @@ Both publications need applicable approval. Switching runtime and SQL comment
 re-saves preceded a successful operator-reported result in November 2026; no
 single root cause or universal runtime dependency was established. Recheck
 current product behavior without silently dropping the selected checkpoints.
+
+**Owner attestation (2026-11-09):** the operator also reported that the
+newline/empty-comment re-save resolved the WWI draft examples' validation errors,
+after explicit parent-table selection was repaired. This corroborates the
+workaround in a second scenario; it does not establish a root cause, universal
+requirement, runtime-answer correctness or publication acceptance.
 
 Preserve this publishing instruction exactly on both publications:
 
