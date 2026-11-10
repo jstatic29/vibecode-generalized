@@ -110,6 +110,15 @@ requires the live-reference and second-presenter evidence described above.
 
 ## Quick start (PowerShell)
 
+For a first independent presenter, start with the
+[limited presenter pilot](docs/presenter-pilot.md). It includes prerequisites,
+a fresh-conversation starting prompt, explicit manual checkpoints and a
+[feedback template](docs/pilot-report-template.md). The
+[sanitized finance reference](docs/finance-reference.md) illustrates evidence
+quality without distributing live resource identities or private run state.
+The pilot covers data through Fabric IQ; semantic model, Planning and app are
+excluded. Preparing this kit does not establish a successful second-presenter run.
+
 Python 3.11+ is sufficient for local preparation, with no third-party runtime packages.
 Run commands from this repository's root. Optional installation:
 `python -m pip install -e .` exposes `fabric-demo`.
