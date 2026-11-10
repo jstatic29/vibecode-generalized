@@ -128,6 +128,22 @@ disclosure boundaries. Spark results do not prove SQL synchronization, SQL secur
 or agent access; retain destination SQL acceptance checks. Warehouse-source live
 validation remains separate from Lakehouse-source evidence.
 
+**Operator-accepted route closure (2026-11-10):** the WWI Lakehouse-source and
+Warehouse-source shortcut walkthroughs are complete for their accepted SQL-only
+scope. Both destinations are dedicated demo Lakehouses; this is not a shortcut
+destination in a Warehouse. Setup, inventory, accepted assessment and SQL-only
+agent configuration were exercised on each route. The Lakehouse-source sample
+covered headline totals, negative supplied Profit and supplier refusal through
+published MCP plus operator-supplied M365 answers. The Warehouse-source sample
+covered headline and Customer Category totals/counts through operator-supplied
+answers; its percentages differ by 0.000001 percentage points from rounded SQL,
+within the recorded tolerance. Further runtime checks were stopped by the owner,
+not silently passed. See README's route acceptance for the retained limitations.
+This scoped closure neither completes the full Fabric IQ gate nor resumes
+ontology/graph. Keep runtime provenance, owner permission attestations and the
+unresolved account/discovery issue distinct from machine checks. Reassess
+freshness, access and approvals for future runs; this is not universal validation.
+
 #### Timeout-controlled execution option
 
 The installed SQL specialist's MCP is primary. If it cannot enforce the run's

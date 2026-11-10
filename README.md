@@ -49,12 +49,13 @@ run evidence, not in the portable skill.
 | Website research and use-case recommendations | Copilot/operator-assisted in Chat; no embedded LLM/crawler |
 | Flexible proposed schema, grains, sources, references and metrics | Implemented, validated declarative recipes |
 | Deterministic local previews and exact expected answers | Implemented |
-| Existing lakehouse data through manual table shortcuts | Gated setup/inventory and opt-in timeout-controlled SQL assessment; full live assessment/downstream acceptance pending |
+| Existing data through manual table shortcuts | Lakehouse-backed and Warehouse-backed routes complete for the operator-accepted SQL-only walkthrough scope; see route acceptance below |
 | Raw JSON -> bronze -> silver -> gold notebook | Generated from the proposal; one synthetic project-finance data build live-validated |
 | Durable notebook deployment/job monitoring | One live notebook build completed, including recovery after an async create response; mocked recovery checks also retained |
 | Approval gates, artifact integrity and evidence | Implemented |
 | Ontology and graph | Dynamic contracts/runbook; one specialist-assisted six-entity finance projection live-verified after native binding repair |
-| Data agent and Rayfin app | Dynamic contracts/runbook; specialist-assisted authoring/deployment, live reference pending |
+| Data agent | Finance data-to-IQ walkthrough accepted and IQ gate closed with SQL, ontology, graph and published-agent evidence; retained scope limitations documented in the companion |
+| Rayfin app | Dynamic contracts/runbook; specialist-assisted deployment and live acceptance pending |
 | Optional semantic model and Fabric Planning | Dynamic contracts and gates; specialist-assisted implementation |
 | Few-hour runtime target | Design goal, not benchmarked |
 
@@ -77,6 +78,35 @@ completed full-stack reference or second-presenter run.
 New industries do not require new Python code when their schemas fit the supported
 recipes. Richer correlations or transformations do require tested extensions; the
 engine fails explicitly rather than substituting a healthcare pattern.
+
+## Existing-data route acceptance
+
+**Operator-accepted complete for the SQL-only walkthrough scope (2026-11-10):**
+both routes use manually created table shortcuts in a new dedicated demo
+Lakehouse. Names below describe source -> destination, not a copy or migration.
+
+| Route | Completed walkthrough evidence |
+|---|---|
+| Existing Lakehouse -> demo Lakehouse shortcuts | Destination setup, exact shortcut inventory, accepted read-only assessment/story/design and SQL-only agent; headline totals, negative supplied Profit and supplier-attribution refusal passed in published MCP and operator-supplied M365 samples |
+| Existing Warehouse -> demo Lakehouse shortcuts | Destination setup, exact shortcut inventory, accepted read-only assessment/story/design and SQL-only agent; operator-supplied headline and Customer Category amounts/counts match independently verified SQL |
+
+This closes these two bounded walkthroughs, not the full Fabric IQ gate or
+accelerator release. The operator stopped further question checks; unexecuted
+calendar trends and other runtime samples are deferred, not passed. Warehouse
+sample percentages differ from correctly rounded SQL by 0.000001 percentage
+points, within the recorded tolerance. SQL baseline availability does not prove
+every corresponding runtime answer.
+
+Ontology/graph remain paused. Repeatability, second-viewer access and the
+Warehouse agent's reported admin-account discovery/publication issue remain
+unverified. API publication readback does not establish visibility in another
+account or M365; retain a manual portal publication/access checkpoint when
+needed, without claiming manual publication is universally required. Source
+read-only permissions remain owner attestations, separate from machine inventory.
+Private run evidence preserves provenance and limitations; no CLI gate or
+immutable generated artifact was changed to obtain this route-level closure.
+Optional app, semantic model and Planning are not included. Full release still
+requires the live-reference and second-presenter evidence described above.
 
 ## Quick start (PowerShell)
 

@@ -181,3 +181,24 @@ Record this as operator-supplied runtime evidence with local reconciliation.
 The publishing suffix is verified, but verbatim downstream forwarding requires
 paired upstream/downstream output evidence; correct content alone does not prove
 it. No independent M365 invocation, graph execution or gate completion is claimed.
+
+**Finance IQ closure (2026-11-10):** the operator subsequently accepted the
+scoped finance flow and explicitly requested gate closure. A fresh dedicated
+`/ontologies` export confirmed the generation-2 definition, six entities,
+six physical/business relationships, 14 rules and native identity annotations.
+Three fresh post-rename graph queries reconciled every node-count, directed-edge
+and held-invoice traversal row to the saved independently SQL-verified baseline:
+3,602 nodes, 7,128 edges, 82 project/supplier groups, 100 held invoices,
+249,003,640 open cents and zero key mismatches. This resolves the post-rename
+sample gap above; it is not a new complete property/key/financial suite or a new
+SQL execution. The first request timed out locally without a response/token;
+its remote outcome remains unknown. A separately approved retry succeeded.
+
+The CLI Fabric IQ gate is now complete as an operator attestation backed by the
+consolidated private handoff and machine/owner evidence. Preserve the accepted
+repeatability/second-viewer scope decisions and M365 provenance. Agent context
+injection/relationship planning still does not prove agent graph execution;
+the graph was queried independently. No additional runtime asks or publication
+were performed for closure. Semantic model, app and rehearsal remain pending;
+Planning is disabled for this run. This does not close the full-stack accelerator
+release or establish a second-industry presenter run.
