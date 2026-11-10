@@ -94,7 +94,7 @@ approved, independently verified revision replaces them.
 The CLI automates synthetic data submission and existing-mode destination setup/
 shortcut inventory, not existing-data profiling.
 The optional, explicitly approved SQL runner executes reviewed column metadata
-and single-table aggregates/count-only relationship checks with ODBC timeouts;
+and bounded aggregates/groups, explicit conversion checks and guarded relationships with ODBC timeouts;
 it does not infer a model or
 automatically complete readiness. See discovery/data for its approval boundary.
 IQ/model/Planning/app outputs are work packages, not full deployment adapters.

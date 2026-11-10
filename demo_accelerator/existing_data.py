@@ -171,8 +171,9 @@ identity only after shortcuts completion. Prepare a structured plan outside this
 immutable run, preview with sql-plan, then obtain data-readiness AND exact-plan/
 scan/disclosure approval before approve-sql-plan and run-sql-plan. Every command
 takes --run-dir; plan commands take --plan. Requires ODBC Driver 18 and optional
-.[sql]. Only column metadata and single-table aggregates are supported; no
-arbitrary SQL, raw rows, grouping or joins. It saves machine receipts and checks
+.[sql]. Supports column metadata, explicit conversion quality checks, bounded
+aggregates/groups, one guarded many-to-one join and count-only relationships; no
+arbitrary SQL or raw rows. It saves machine receipts and checks
 identity/target drift; no automatic readiness completion or retries. Timeout is
 per statement and does not prove remote cancellation. See README for plan fields.
 

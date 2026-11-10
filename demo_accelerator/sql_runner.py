@@ -25,6 +25,15 @@ IDENTITY_SQL = (
 NUMERIC = {"bigint", "int", "smallint", "tinyint", "decimal", "numeric",
            "float", "real", "money", "smallmoney"}
 ORDERED = NUMERIC | {"date", "datetime2", "datetime", "smalldatetime", "time"}
+CONVERSIONS = {
+    "decimal": "decimal(28,6)", "integer": "bigint", "iso_date": "date",
+    "iso_timestamp_date": "date",
+    "odbc_midnight_date": "date",
+}
+
+
+class QualityError(DemoError):
+    """A completed read returned a failed quality check, not an uncertain SQL timeout."""
 
 
 def quote(value):
@@ -79,7 +88,8 @@ def validate_plan(config, state, plan):
     seen = set()
     for query in queries:
         _keys(query, ["id", "kind", "table", "measures", "filters", "scan_budget",
-                      "disclosure", "relationship"], "SQL query")
+                      "disclosure", "relationship", "conversions", "group_by", "join",
+                      "checks", "date_columns"], "SQL query")
         name = query.get("id")
         if not isinstance(name, str) or not re.fullmatch(r"[a-z][a-z0-9_]{0,63}", name) or name in seen:
             raise DemoError("SQL query ids must be unique lowercase identifiers")
@@ -89,6 +99,77 @@ def validate_plan(config, state, plan):
         _text(query.get("scan_budget"), "query.scan_budget", 2000)
         _text(query.get("disclosure"), "query.disclosure", 2000)
         kind = query.get("kind")
+        if "date_columns" in query or kind == "date_formats":
+            date_columns = query.get("date_columns")
+            if (kind != "date_formats" or not isinstance(date_columns, list)
+                    or not date_columns or len(date_columns) > config["scope"]["max_result_rows"]):
+                raise DemoError("date_formats requires a bounded nonempty date_columns list")
+            for name in date_columns:
+                quote(name)
+            if len(set(date_columns)) != len(date_columns):
+                raise DemoError("date_columns must be unique")
+        conversions = query.get("conversions", [])
+        groups = query.get("group_by", [])
+        checks = query.get("checks", [])
+        if not isinstance(checks, list):
+            raise DemoError("checks must be a list")
+        if checks and (kind not in {"aggregate", "relationship"} or groups):
+            raise DemoError("Equality checks require a single-row aggregate or relationship")
+        for check in checks:
+            _keys(check, ["column", "equals", "equals_column"], "SQL result check")
+            quote(check.get("column"))
+            if ("equals" in check) == ("equals_column" in check):
+                raise DemoError("Checks require exactly one of equals or equals_column")
+            if "equals_column" in check:
+                quote(check["equals_column"])
+            elif (type(check["equals"]) not in {str, int, float, bool}
+                  or (type(check["equals"]) is float and not math.isfinite(check["equals"]))):
+                raise DemoError("Check values must be finite scalar parameters")
+        if not isinstance(conversions, list) or not isinstance(groups, list):
+            raise DemoError("conversions and group_by must be lists")
+        if (conversions or groups or "join" in query) and kind not in {"aggregate", "conversion"}:
+            raise DemoError("Conversions/grouping/join require an aggregate or conversion query")
+        converted = set()
+        for conversion in conversions:
+            _keys(conversion, ["column", "type", "allow_null"], "SQL conversion")
+            col = conversion.get("column")
+            quote(col)
+            if (col in converted or not isinstance(conversion.get("type"), str)
+                    or conversion["type"] not in CONVERSIONS):
+                raise DemoError("Conversions require unique columns and an allowlisted type")
+            if type(conversion.get("allow_null")) is not bool:
+                raise DemoError("Conversion allow_null must be explicit")
+            converted.add(col)
+        if kind == "conversion" and (not conversions or groups or "join" in query):
+            raise DemoError("Conversion checks require conversions only, without groups or joins")
+        if len(conversions) > config["scope"]["max_result_rows"]:
+            raise DemoError("Too many conversion checks")
+        if len(groups) > 3:
+            raise DemoError("At most three grouping columns are supported")
+        group_names = set()
+        for group in groups:
+            _keys(group, ["column", "name", "source", "date_part"], "SQL group")
+            quote(group.get("column"))
+            name = group.get("name")
+            if not isinstance(name, str) or not re.fullmatch(r"[a-z][a-z0-9_]{0,63}", name):
+                raise DemoError("Group names must be lowercase identifiers")
+            if name in group_names or group.get("source", "base") not in ("base", "parent"):
+                raise DemoError("Group names must be unique and source must be base or parent")
+            group_names.add(name)
+            if "date_part" in group and group["date_part"] not in ("year", "month"):
+                raise DemoError("Only calendar year/month date parts are supported")
+            if group.get("source") == "parent" and "join" not in query:
+                raise DemoError("Parent grouping requires a reviewed join")
+        if "join" in query:
+            join = query["join"]
+            _keys(join, ["column", "parent_table", "parent_column"], "SQL join")
+            if (not isinstance(join.get("parent_table"), str)
+                    or join["parent_table"] not in aliases or join["parent_table"] == query["table"]):
+                raise DemoError("Join parent must be a different approved shortcut table")
+            quote(join.get("column"))
+            quote(join.get("parent_column"))
+            if join["column"] in converted:
+                raise DemoError("Converted-key joins are not supported")
         measures, filters = query.get("measures", []), query.get("filters", [])
         if not isinstance(measures, list) or not isinstance(filters, list):
             raise DemoError("measures and filters must be lists")
@@ -104,24 +185,35 @@ def validate_plan(config, state, plan):
                 raise DemoError("Relationship parent must be a different approved shortcut table")
             quote(relationship.get("column"))
             quote(relationship.get("parent_column"))
-        elif kind == "columns":
+        elif kind in {"columns", "conversion", "date_formats"}:
             if measures or filters:
-                raise DemoError("Column metadata queries cannot include measures or filters")
+                raise DemoError("Column metadata/conversion queries cannot include measures or filters")
         elif kind == "aggregate":
             if not measures or len(measures) > config["scope"]["max_result_rows"]:
                 raise DemoError("Aggregate queries need a bounded list of measures")
             output_names = set()
             for measure in measures:
-                _keys(measure, ["name", "function", "column"], "SQL measure")
+                _keys(measure, ["name", "function", "column", "numerator", "denominator"], "SQL measure")
                 name = measure.get("name")
                 if (not isinstance(name, str) or not re.fullmatch(r"[a-z][a-z0-9_]{0,63}", name)
                         or name in output_names):
                     raise DemoError("Measure names must be unique lowercase identifiers")
                 output_names.add(name)
+                if name in group_names:
+                    raise DemoError("Measure names cannot collide with grouping names")
                 function = measure.get("function")
                 if (not isinstance(function, str)
-                        or function not in {"count_rows", "count_distinct", "null_count", "sum", "min", "max"}):
+                        or function not in {"count_rows", "count_distinct", "null_count", "sum",
+                                            "min", "max", "ratio_of_sums"}):
                     raise DemoError("Unsupported aggregate function")
+                if function == "ratio_of_sums":
+                    if "column" in measure:
+                        raise DemoError("ratio_of_sums uses numerator and denominator columns")
+                    quote(measure.get("numerator"))
+                    quote(measure.get("denominator"))
+                    continue
+                if "numerator" in measure or "denominator" in measure:
+                    raise DemoError("Only ratio_of_sums accepts numerator/denominator")
                 if function == "count_rows":
                     if "column" in measure:
                         raise DemoError("count_rows cannot specify a column")
@@ -138,7 +230,7 @@ def validate_plan(config, state, plan):
                         or (type(value) is float and not math.isfinite(value))):
                     raise DemoError("SQL filter values must be finite scalar parameters")
         else:
-            raise DemoError("Only columns, aggregate and relationship queries are supported")
+            raise DemoError("Only columns, conversion, date_formats, aggregate and relationship queries are supported")
     return plan
 
 
@@ -146,8 +238,10 @@ def preview(root, plan):
     config, state = context(root)
     validate_plan(config, state, plan)
     return {"plan_sha256": digest(plan), "scope": config["scope"], "plan": plan,
-            "limitations": "No arbitrary SQL, raw rows or grouping; relationships use fixed count-only "
-                           "EXISTS checks, not general joins. Scan budgets are "
+            "limitations": "No arbitrary SQL or raw rows. Explicit conversions are quality-checked "
+                           "over full tables before filters; invalid values block aggregates. "
+                           "Up to three groups and one guarded many-to-one LEFT JOIN; no general joins. "
+                           "Scan budgets are "
                            "owner-reviewed, not a byte-scan quota. Timeout is per statement."}
 
 
@@ -270,21 +364,166 @@ def columns_sql(config, table, limit):
     )
 
 
-def aggregate_sql(config, query, columns):
+def conversion_expression(conversion, expression):
+    value = f"NULLIF(LTRIM(RTRIM({expression})), '')"
+    target = CONVERSIONS[conversion["type"]]
+    if conversion["type"] == "iso_date":
+        parsed = f"TRY_CONVERT(date, {value}, 23)"
+        return (f"CASE WHEN CONVERT(varchar(10), {parsed}, 23) = {value} "
+                f"AND LEN({value}) = 10 THEN {parsed} END")
+    if conversion["type"] == "iso_timestamp_date":
+        parsed = f"TRY_CONVERT(datetime2(6), {value}, 126)"
+        return (
+            f"CASE WHEN SUBSTRING({value}, 11, 1) = 'T' "
+            f"AND SUBSTRING({value}, 12, 8) = '00:00:00' "
+            f"AND (LEN({value}) = 19 OR (LEN({value}) BETWEEN 21 AND 26 "
+            f"AND SUBSTRING({value}, 20, 1) = '.' "
+            f"AND SUBSTRING({value}, 21, 6) NOT LIKE '%[^0-9]%')) "
+            f"AND CONVERT(varchar(10), {parsed}, 23) = LEFT({value}, 10) "
+            f"AND {parsed} = CONVERT(datetime2(6), CONVERT(date, {parsed})) "
+            f"THEN CONVERT(date, {parsed}) END")
+    if conversion["type"] == "odbc_midnight_date":
+        prefix = f"LEFT({value}, 10)"
+        parsed = f"TRY_CONVERT(date, {prefix}, 23)"
+        return (
+            f"CASE WHEN LEN({value}) = 27 "
+            f"AND SUBSTRING({value}, 11, 17) = ' 00:00:00.0000000' "
+            f"AND CONVERT(varchar(10), {parsed}, 23) = {prefix} "
+            f"THEN {parsed} END")
+    parsed = f"TRY_CONVERT({target}, {value})"
+    if conversion["type"] == "decimal":
+        # Reject excess fractional precision rather than silently rounding source text.
+        return (f"CASE WHEN CHARINDEX('.', {value}) = 0 OR "
+                f"LEN({value}) - CHARINDEX('.', {value}) <= 6 THEN {parsed} END")
+    return parsed
+
+
+def conversion_sql(config, query, columns):
     types = {row["COLUMN_NAME"]: row["DATA_TYPE"].lower() for row in columns}
+    checks, parameters = [], []
+    table = quote(config["deployment"]["schema"]) + "." + quote(query["table"])
+    for conversion in query.get("conversions", []):
+        name = conversion["column"]
+        if name not in types or types[name] not in {"varchar", "char"}:
+            raise DemoError("Explicit conversions require a live text column")
+        raw = quote(name)
+        converted = conversion_expression(conversion, raw)
+        checks.append(
+            "SELECT ? AS [column_name], COUNT_BIG(*) AS [row_count], "
+            f"COUNT_BIG(*) - COUNT_BIG({raw}) AS [null_count], "
+            f"COUNT_BIG(CASE WHEN {raw} IS NOT NULL AND ({converted}) IS NULL "
+            f"THEN 1 END) AS [invalid_count] FROM {table}")
+        parameters.append(name)
+    return " UNION ALL ".join(checks), tuple(parameters)
+
+
+def check_conversions(query, rows):
+    expected = {c["column"]: c for c in query.get("conversions", [])}
+    if len(rows) != len(expected) or {r.get("column_name") for r in rows} != set(expected):
+        raise DemoError("Conversion quality receipt does not match approved columns")
+    for row in rows:
+        if row["invalid_count"] or (row["null_count"] and
+                                   not expected[row["column_name"]]["allow_null"]):
+            raise QualityError("Conversion quality failed; no analytical query executed")
+
+
+def date_formats_sql(config, query, columns):
+    types = {row["COLUMN_NAME"]: row["DATA_TYPE"].lower() for row in columns}
+    table = quote(config["deployment"]["schema"]) + "." + quote(query["table"])
+    statements, parameters = [], []
+    for name in query["date_columns"]:
+        if name not in types or types[name] not in {"varchar", "char"}:
+            raise DemoError("Date format diagnostics require a live text column")
+        raw = quote(name)
+        value = f"NULLIF(LTRIM(RTRIM({raw})), '')"
+        counts = [
+            f"COUNT_BIG(*) - COUNT_BIG({raw}) AS [null_count]",
+            f"MIN(LEN({value})) AS [min_length]", f"MAX(LEN({value})) AS [max_length]",
+            f"COUNT_BIG(CASE WHEN SUBSTRING({value}, 11, 1) = 'T' THEN 1 END) AS [t_separator]",
+            f"COUNT_BIG(CASE WHEN SUBSTRING({value}, 11, 1) = ' ' THEN 1 END) AS [space_separator]",
+            f"COUNT_BIG(CASE WHEN LEFT({value}, 1) = '\"' THEN 1 END) AS [leading_quote]",
+        ]
+        for label, style in (
+                ("parse_iso_date", 23), ("parse_iso_timestamp", 126),
+                ("parse_odbc_timestamp", 121), ("parse_mdy", 101),
+                ("parse_dmy", 103), ("parse_compact", 112)):
+            counts.append(
+                f"COUNT_BIG(CASE WHEN TRY_CONVERT(datetime2(6), {value}, {style}) "
+                f"IS NOT NULL THEN 1 END) AS [{label}]")
+        statements.append(
+            "SELECT ? AS [column_name], COUNT_BIG(*) AS [row_count], "
+            + ", ".join(counts) + " FROM " + table)
+        parameters.append(name)
+    return " UNION ALL ".join(statements), tuple(parameters)
+
+
+def check_results(query, rows):
+    for check in query.get("checks", []):
+        if len(rows) != 1 or check["column"] not in rows[0]:
+            raise DemoError("SQL result check requires one row and a known output column")
+        row = rows[0]
+        if "equals_column" in check:
+            if check["equals_column"] not in row:
+                raise DemoError("SQL result check references an unknown output column")
+            expected = row[check["equals_column"]]
+        else:
+            expected = check["equals"]
+        if row[check["column"]] is None or row[check["column"]] != expected:
+            raise QualityError("SQL result quality check failed; remaining queries not executed")
+
+
+def aggregate_sql(config, query, columns, parent_columns=None):
+    types = {row["COLUMN_NAME"]: row["DATA_TYPE"].lower() for row in columns}
+    conversions = {c["column"]: c for c in query.get("conversions", [])}
+    extended = bool(query.get("group_by") or query.get("join"))
 
     def column(name):
         if name not in types:
             raise DemoError("Plan references a column absent from live approved table metadata")
-        return quote(name)
+        expression = ("b." if extended else "") + quote(name)
+        if name in conversions:
+            return conversion_expression(conversions[name], expression)
+        return expression
 
-    expressions = []
+    def effective_type(name):
+        conversion = conversions.get(name)
+        return ({"decimal": "decimal", "integer": "bigint", "iso_date": "date",
+                 "iso_timestamp_date": "date", "odbc_midnight_date": "date"}[
+            conversion["type"]] if conversion else types[name])
+
+    groups = []
+    for group in query.get("group_by", []):
+        name = group["column"]
+        if group.get("source", "base") == "parent":
+            parent_types = {r["COLUMN_NAME"]: r["DATA_TYPE"].lower()
+                            for r in parent_columns or []}
+            if name not in parent_types:
+                raise DemoError("Grouping column absent from live parent metadata")
+            expression, dtype = "p." + quote(name), parent_types[name]
+        else:
+            expression, dtype = column(name), effective_type(name)
+        if "date_part" in group:
+            if dtype != "date":
+                raise DemoError("Calendar grouping requires an explicit date type")
+            expression = f"DATEPART({group['date_part']}, {expression})"
+        groups.append((expression, group["name"]))
+
+    expressions = [expression + " AS " + quote(name) for expression, name in groups]
     for measure in query["measures"]:
         function = measure["function"]
+        if function == "ratio_of_sums":
+            numerator, denominator = column(measure["numerator"]), column(measure["denominator"])
+            if any(effective_type(measure[k]) not in NUMERIC for k in ("numerator", "denominator")):
+                raise DemoError("Ratio-of-sums requires numeric columns")
+            expression = (
+                f"CAST(100 AS decimal(5,2)) * (CAST(SUM({numerator}) AS decimal(28,6)) / "
+                f"NULLIF(CAST(SUM({denominator}) AS decimal(28,6)), 0))")
+            expressions.append(f"{expression} AS {quote(measure['name'])}")
+            continue
         name = measure.get("column")
         col = column(name) if function != "count_rows" else None
         if function in {"sum", "min", "max"}:
-            if types[name] not in (NUMERIC if function == "sum" else ORDERED):
+            if effective_type(name) not in (NUMERIC if function == "sum" else ORDERED):
                 raise DemoError("SUM requires numeric columns; MIN/MAX require numeric or date/time columns")
         if function == "count_rows":
             expression = "COUNT_BIG(*)"
@@ -299,10 +538,22 @@ def aggregate_sql(config, query, columns):
     for condition in query.get("filters", []):
         predicates.append(f"{column(condition['column'])} {condition['op']} ?")
         parameters.append(condition["value"])
-    sql = ("SELECT " + ", ".join(expressions) + " FROM "
+    top = f"TOP ({config['scope']['max_result_rows'] + 1}) " if groups else ""
+    sql = ("SELECT " + top + ", ".join(expressions) + " FROM "
            + quote(config["deployment"]["schema"]) + "." + quote(query["table"]))
+    if extended:
+        sql += " AS b"
+    if "join" in query:
+        join = query["join"]
+        # The runner separately checks exact key types, parent uniqueness and orphans.
+        sql += (" LEFT JOIN " + quote(config["deployment"]["schema"]) + "."
+                + quote(join["parent_table"]) + " AS p ON b." + quote(join["column"])
+                + " = p." + quote(join["parent_column"]))
     if predicates:
         sql += " WHERE " + " AND ".join(predicates)
+    if groups:
+        sql += " GROUP BY " + ", ".join(expression for expression, _ in groups)
+        sql += " ORDER BY " + ", ".join(quote(name) for _, name in groups)
     return sql, tuple(parameters)
 
 
@@ -392,8 +643,34 @@ def run(root, expected_login=None, plan=None, client=None, session_factory=None,
             columns = session.query(sql, parameters, limit)
             if not columns:
                 raise DemoError("Approved shortcut table has no visible columns")
+            if query.get("conversions"):
+                quality_sql, quality_parameters = conversion_sql(config, query, columns)
+                entry.update(conversion_sql=quality_sql,
+                             conversion_parameters=list(quality_parameters))
+                save(path, receipt)
+                quality_rows = session.query(quality_sql, quality_parameters, limit)
+                entry["conversion_rows"] = quality_rows
+                save(path, receipt)
+                check_conversions(query, quality_rows)
             if query["kind"] == "aggregate":
-                sql, parameters = aggregate_sql(config, query, columns)
+                parent_columns = None
+                if "join" in query:
+                    sql, parameters = columns_sql(config, query["join"]["parent_table"], limit)
+                    entry.update(parent_metadata_sql=sql, parent_metadata_parameters=list(parameters))
+                    save(path, receipt)
+                    parent_columns = session.query(sql, parameters, limit)
+                    guard = {"table": query["table"], "relationship": query["join"]}
+                    sql, parameters = relationship_sql(config, guard, columns, parent_columns)
+                    entry["join_guard_sql"] = sql
+                    save(path, receipt)
+                    guard_rows = session.query(sql, parameters, limit)
+                    entry["join_guard_rows"] = guard_rows
+                    save(path, receipt)
+                    if (len(guard_rows) != 1 or guard_rows[0]["orphan_rows"]
+                            or guard_rows[0]["null_parent_keys"]
+                            or guard_rows[0]["parent_rows"] != guard_rows[0]["distinct_parent_keys"]):
+                        raise QualityError("Join quality failed; no grouped aggregate executed")
+                sql, parameters = aggregate_sql(config, query, columns, parent_columns)
                 entry.update(sql=sql, parameters=list(parameters))
                 save(path, receipt)
                 rows = session.query(sql, parameters, limit)
@@ -406,11 +683,24 @@ def run(root, expected_login=None, plan=None, client=None, session_factory=None,
                 entry.update(sql=sql, parameters=list(parameters))
                 save(path, receipt)
                 rows = session.query(sql, parameters, limit)
+            elif query["kind"] == "date_formats":
+                sql, parameters = date_formats_sql(config, query, columns)
+                entry.update(sql=sql, parameters=list(parameters))
+                save(path, receipt)
+                rows = session.query(sql, parameters, limit)
+            elif query["kind"] == "conversion":
+                sql, parameters, rows = quality_sql, quality_parameters, quality_rows
             else:
                 rows = columns
             entry.update(status="succeeded", completed_at=now(), sql=sql,
                          parameters=list(parameters), rows=rows)
             save(path, receipt)
+            try:
+                check_results(query, rows)
+            except DemoError:
+                entry["status"] = "quality-failed"
+                save(path, receipt)
+                raise
         closing, session = session, None
         closing.close()
         receipt.update(status="succeeded", completed_at=now())
@@ -420,8 +710,15 @@ def run(root, expected_login=None, plan=None, client=None, session_factory=None,
         return {"status": "succeeded", "evidence": relative, "identity_only": plan is None,
                 "queries_completed": len(receipt["queries"])}
     except (DemoError, OSError, ValueError, subprocess.SubprocessError) as exc:
-        receipt.update(status="failed-remote-status-unconfirmed", completed_at=now(),
-                       error="Execution failed; no automatic retry. Review request and source status.")
+        quality_failed = isinstance(exc, QualityError)
+        if quality_failed and receipt["queries"]:
+            receipt["queries"][-1]["status"] = "quality-failed"
+        receipt.update(
+            status="failed-quality-check" if quality_failed else "failed-remote-status-unconfirmed",
+            completed_at=now(),
+            error=("Read-only query completed with failed quality checks; no automatic retry."
+                   if quality_failed else
+                   "Execution failed; no automatic retry. Review request and source status."))
         save(path, receipt)
         audit(root, state, "sql-execution-failed", "data-readiness", evidence=relative)
         raise DemoError(f"SQL runner stopped. Evidence: {relative}. {exc}") from exc

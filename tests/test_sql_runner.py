@@ -5,6 +5,7 @@ import struct
 import tempfile
 import unittest
 from decimal import Decimal
+from datetime import date
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
@@ -14,7 +15,8 @@ from demo_accelerator.config import DemoError, digest
 from demo_accelerator.existing_data import evidence_fields, inspect_shortcuts, setup_lakehouse
 from demo_accelerator.sql_runner import (
     IDENTITY_SQL, OdbcSession, aggregate_sql, approve_plan, preview, quote,
-    relationship_sql, run, scalar,
+    relationship_sql, run, scalar, conversion_sql, check_conversions, check_results,
+    date_formats_sql,
 )
 from demo_accelerator.state import REQUIRED_CHECKS, approve, complete, initialize, read
 from test_existing_data import FakeExistingFabric, LAKEHOUSE, WORKSPACE, intake
@@ -309,6 +311,303 @@ class SqlRunnerTests(unittest.TestCase):
             self.assertEqual(result, (5, 1, 1, 4, 1, 2))
         finally:
             connection.close()
+
+    def test_explicit_conversion_sql_and_fail_closed_quality(self):
+        query = {"table": "orders", "conversions": [
+            {"column": "Amount", "type": "decimal", "allow_null": False},
+            {"column": "Order Date", "type": "iso_date", "allow_null": False},
+        ]}
+        metadata = [{"COLUMN_NAME": c["column"], "DATA_TYPE": "varchar"}
+                    for c in query["conversions"]]
+        sql, params = conversion_sql(self.config, query, metadata)
+        self.assertEqual(params, ("Amount", "Order Date"))
+        self.assertIn("TRY_CONVERT(decimal(28,6)", sql)
+        self.assertIn("TRY_CONVERT(date,", sql)
+        self.assertIn(", 23)", sql)
+        self.assertIn("<= 6", sql)
+        self.assertIn("LEN(", sql)
+        self.assertIn("NULLIF(LTRIM(RTRIM(", sql)
+        self.assertNotIn(" WHERE ", sql)  # Quality checks cover the whole table.
+        rows = [{"column_name": c["column"], "invalid_count": 0, "null_count": 0}
+                for c in query["conversions"]]
+        check_conversions(query, rows)
+        for field in ("invalid_count", "null_count"):
+            bad = copy.deepcopy(rows)
+            bad[0][field] = 1
+            with self.assertRaisesRegex(DemoError, "quality failed"):
+                check_conversions(query, bad)
+        with self.assertRaisesRegex(DemoError, "does not match"):
+            check_conversions(query, rows[:1])
+        query["conversions"][0]["allow_null"] = True
+        rows[0]["null_count"] = 1
+        check_conversions(query, rows)
+
+    def test_conversion_and_calendar_aggregate_are_explicit_and_parameterized(self):
+        self.aggregate()
+        query = self.plan["queries"][0]
+        query.update(conversions=[
+            {"column": "Amount", "type": "decimal", "allow_null": False},
+            {"column": "Order Date", "type": "iso_date", "allow_null": False}],
+            group_by=[{"column": "Order Date", "name": "year", "date_part": "year"},
+                      {"column": "Order Date", "name": "month", "date_part": "month"}])
+        preview(self.root, self.plan)
+        metadata = [{"COLUMN_NAME": c["column"], "DATA_TYPE": "varchar"}
+                    for c in query["conversions"]]
+        sql, params = aggregate_sql(self.config, query, metadata)
+        self.assertIn("SELECT TOP (101)", sql)
+        self.assertIn("DATEPART(year,", sql)
+        self.assertIn("DATEPART(month,", sql)
+        self.assertIn("GROUP BY", sql)
+        self.assertIn("ORDER BY [year], [month]", sql)
+        self.assertIn("SUM(CASE", sql)
+        self.assertEqual(params, ("2016-01-01", "2016-01-02"))
+
+    def test_new_plan_fields_reject_unsafe_and_inconsistent_scope(self):
+        self.aggregate()
+        valid = copy.deepcopy(self.plan)
+        valid["queries"][0]["conversions"] = [
+            {"column": "Amount", "type": "decimal", "allow_null": False}]
+        for update in (
+                {"conversions": [{"column": "Amount", "type": "float", "allow_null": False}]},
+                {"conversions": [{"column": "Amount", "type": [], "allow_null": False}]},
+                {"conversions": [{"column": "Amount", "type": "decimal"}]},
+                {"group_by": [{"column": "Amount", "name": "total"}]},
+                {"group_by": [{"column": "Amount", "name": "x", "source": "parent"}]},
+                {"group_by": [{"column": "Amount", "name": "x", "date_part": "EXEC"}]},
+                {"join": {"column": "X", "parent_table": "other", "parent_column": "X"}},
+                {"kind": "columns"},
+                {"kind": "conversion"}):
+            plan = copy.deepcopy(valid)
+            plan["queries"][0].update(update)
+            with self.subTest(update=update), self.assertRaises(DemoError):
+                preview(self.root, plan)
+
+    def test_conversion_failure_saves_counts_before_stopping_aggregate(self):
+        self.aggregate()
+        self.plan["queries"][0]["conversions"] = [
+            {"column": "Amount", "type": "decimal", "allow_null": False}]
+        self.authorize()
+        def factory(server, database, timeout):
+            session = self.factory(server, database, timeout)
+            original = session.query
+            def query(sql, params, limit):
+                if "INFORMATION_SCHEMA.COLUMNS" in sql:
+                    return [{"COLUMN_NAME": "Amount", "DATA_TYPE": "varchar"}]
+                if "invalid_count" in sql:
+                    session.calls.append((sql, params, limit))
+                    return [{"column_name": "Amount", "invalid_count": 1, "null_count": 0}]
+                return original(sql, params, limit)
+            session.query = query
+            return session
+        with self.assertRaisesRegex(DemoError, "quality failed"):
+            self.execute(self.plan, factory)
+        self.assertFalse(any("SUM(" in c[0] for c in self.sessions[0].calls))
+        receipt = json.loads(next((self.root / "evidence").glob("sql-execution-*")).read_text())
+        self.assertEqual(receipt["queries"][0]["conversion_rows"][0]["invalid_count"], 1)
+        self.assertEqual(receipt["queries"][0]["status"], "quality-failed")
+        self.assertEqual(receipt["status"], "failed-quality-check")
+
+    def test_result_checks_stop_remaining_queries_and_preserve_findings(self):
+        self.aggregate()
+        self.plan["queries"][0]["checks"] = [{"column": "total", "equals": "0"}]
+        self.plan["queries"].append({
+            "id": "later", "kind": "columns", "table": "orders",
+            "scan_budget": "Catalog only", "disclosure": "Column metadata"})
+        self.authorize()
+        with self.assertRaisesRegex(DemoError, "remaining queries"):
+            self.execute(self.plan)
+        receipt = json.loads(next((self.root / "evidence").glob("sql-execution-*")).read_text())
+        self.assertEqual(len(receipt["queries"]), 1)
+        self.assertEqual(receipt["queries"][0]["status"], "quality-failed")
+        self.assertEqual(receipt["queries"][0]["rows"], [{"total": "10.25"}])
+        check_results({"checks": [{"column": "rows", "equals_column": "distinct"}]},
+                      [{"rows": 2, "distinct": 2}])
+        for rows in ([], [{"rows": 2}], [{"rows": None, "distinct": None}]):
+            with self.assertRaises(DemoError):
+                check_results({"checks": [{"column": "rows", "equals_column": "distinct"}]}, rows)
+
+    def test_explicit_conversion_success_executes_sum_after_quality_receipt(self):
+        self.aggregate()
+        self.plan["queries"][0]["conversions"] = [
+            {"column": "Amount", "type": "decimal", "allow_null": False}]
+        self.authorize()
+        def factory(server, database, timeout):
+            session = self.factory(server, database, timeout)
+            original = session.query
+            def query(sql, params, limit):
+                if "INFORMATION_SCHEMA.COLUMNS" in sql:
+                    return [{"COLUMN_NAME": "Amount", "DATA_TYPE": "varchar"},
+                            {"COLUMN_NAME": "Order Date", "DATA_TYPE": "date"}]
+                if "invalid_count" in sql:
+                    session.calls.append((sql, params, limit))
+                    return [{"column_name": "Amount", "invalid_count": 0, "null_count": 0}]
+                return original(sql, params, limit)
+            session.query = query
+            return session
+        result = self.execute(self.plan, factory)
+        self.assertEqual(result["status"], "succeeded")
+        self.assertIn("SUM(CASE", self.sessions[0].calls[-1][0])
+
+    def test_ratio_uses_sums_and_zero_guard_not_average_row_ratios(self):
+        query = {"table": "orders", "measures": [
+            {"name": "margin_pct", "function": "ratio_of_sums",
+             "numerator": "Profit", "denominator": "Sales"}]}
+        metadata = [{"COLUMN_NAME": c, "DATA_TYPE": "decimal"} for c in ("Profit", "Sales")]
+        sql, params = aggregate_sql(self.config, query, metadata)
+        self.assertIn("SUM([Profit])", sql)
+        self.assertIn("NULLIF(CAST(SUM([Sales])", sql)
+        self.assertNotIn("AVG(", sql)
+        self.assertEqual(params, ())
+        connection = sqlite3.connect(":memory:")
+        try:
+            connection.execute("ATTACH DATABASE ':memory:' AS demo_customer")
+            connection.execute("CREATE TABLE demo_customer.orders (Profit real, Sales real)")
+            connection.executemany("INSERT INTO demo_customer.orders VALUES (?,?)",
+                                   [(10.0, 100.0), (50.0, 200.0), (-5.0, 0.0)])
+            self.assertAlmostEqual(connection.execute(sql).fetchone()[0], 100 * 55 / 300)
+            connection.execute("DELETE FROM demo_customer.orders")
+            connection.execute("INSERT INTO demo_customer.orders VALUES (5.0, 0.0)")
+            self.assertIsNone(connection.execute(sql).fetchone()[0])
+        finally:
+            connection.close()
+        with self.assertRaisesRegex(DemoError, "numeric"):
+            aggregate_sql(self.config, query, [
+                {"COLUMN_NAME": c, "DATA_TYPE": "varchar"} for c in ("Profit", "Sales")])
+
+    def test_iso_timestamp_date_is_explicit_midnight_only_without_timezone_guessing(self):
+        query = {"table": "orders", "conversions": [
+            {"column": "Order Date", "type": "iso_timestamp_date", "allow_null": False}]}
+        metadata = [{"COLUMN_NAME": "Order Date", "DATA_TYPE": "varchar"}]
+        sql, params = conversion_sql(self.config, query, metadata)
+        self.assertIn("TRY_CONVERT(datetime2(6)", sql)
+        self.assertIn(", 126)", sql)
+        self.assertIn("= 'T'", sql)
+        self.assertIn("= '00:00:00'", sql)
+        self.assertIn("BETWEEN 21 AND 26", sql)
+        self.assertIn("NOT LIKE '%[^0-9]%'", sql)
+        self.assertEqual(params, ("Order Date",))
+        query.update(measures=[{"name": "first_date", "function": "min", "column": "Order Date"}],
+                     group_by=[{"column": "Order Date", "name": "month", "date_part": "month"}])
+        aggregate, _ = aggregate_sql(self.config, query, metadata)
+        self.assertIn("DATEPART(month,", aggregate)
+
+    def test_date_format_diagnostic_is_count_only_and_does_not_choose_mapping(self):
+        query = self.plan["queries"][0]
+        query.update(kind="date_formats", date_columns=["Order Date"])
+        preview(self.root, self.plan)
+        sql, params = date_formats_sql(
+            self.config, query, [{"COLUMN_NAME": "Order Date", "DATA_TYPE": "varchar"}])
+        self.assertEqual(params, ("Order Date",))
+        for style in (23, 126, 121, 101, 103, 112):
+            self.assertIn(f", {style})", sql)
+        self.assertIn("COUNT_BIG(CASE", sql)
+        self.assertNotIn("GROUP BY", sql)
+        self.assertNotIn("SELECT [Order Date]", sql)
+        with self.assertRaisesRegex(DemoError, "text column"):
+            date_formats_sql(self.config, query, [{"COLUMN_NAME": "Order Date", "DATA_TYPE": "date"}])
+        query["date_columns"] = ["Order Date", "Order Date"]
+        with self.assertRaisesRegex(DemoError, "unique"):
+            preview(self.root, self.plan)
+
+    def test_odbc_midnight_date_does_not_round_seventh_fraction_or_discard_time(self):
+        query = {"table": "orders", "conversions": [
+            {"column": "Order Date", "type": "odbc_midnight_date", "allow_null": False}]}
+        sql, params = conversion_sql(
+            self.config, query, [{"COLUMN_NAME": "Order Date", "DATA_TYPE": "varchar"}])
+        self.assertIn("= 27", sql)
+        self.assertIn("= ' 00:00:00.0000000'", sql)
+        self.assertIn("TRY_CONVERT(date, LEFT(", sql)
+        self.assertNotIn("TRY_CONVERT(datetime2", sql)
+        self.assertEqual(params, ("Order Date",))
+        connection = sqlite3.connect(":memory:")
+        def try_date(value, style):
+            try:
+                return date.fromisoformat(value).isoformat() if value is not None else None
+            except ValueError:
+                return None
+        try:
+            connection.create_function("try_date", 2, try_date)
+            connection.create_function("canonical_date", 2, lambda value, style: value)
+            connection.create_function("left_text", 2, lambda value, n: value[:n] if value else value)
+            connection.create_function("LEN", 1, lambda value: len(value) if value else None)
+            connection.execute("ATTACH DATABASE ':memory:' AS demo_customer")
+            connection.execute("CREATE TABLE demo_customer.orders ([Order Date] text)")
+            connection.executemany("INSERT INTO demo_customer.orders VALUES (?)", [
+                ("2016-02-29 00:00:00.0000000",),
+                ("2016-02-30 00:00:00.0000000",),
+                ("2016-01-01 01:00:00.0000000",),
+                ("2016-01-01 00:00:00.0000001",),
+                ("2016-01-01T00:00:00.0000000",),
+                ("",), (None,),
+            ])
+            adapted = (sql.replace("COUNT_BIG", "COUNT")
+                       .replace("TRY_CONVERT(date,", "try_date(")
+                       .replace("CONVERT(varchar(10),", "canonical_date(")
+                       .replace("LEFT(", "left_text("))
+            self.assertEqual(connection.execute(adapted, params).fetchone(),
+                             ("Order Date", 7, 1, 5))
+        finally:
+            connection.close()
+
+    def test_grouped_join_executes_only_after_unique_nonorphan_parent_guard(self):
+        query = {"table": "orders", "measures": [
+            {"name": "total", "function": "sum", "column": "Amount"}],
+            "group_by": [{"column": "Category", "name": "category", "source": "parent"}],
+            "join": {"column": "Customer Key", "parent_table": "customers",
+                     "parent_column": "Customer Key"}}
+        columns = [{"COLUMN_NAME": "Amount", "DATA_TYPE": "decimal"},
+                   {"COLUMN_NAME": "Customer Key", "DATA_TYPE": "int"}]
+        parent = [{"COLUMN_NAME": "Category", "DATA_TYPE": "varchar"}]
+        sql, params = aggregate_sql(self.config, query, columns, parent)
+        connection = sqlite3.connect(":memory:")
+        try:
+            connection.execute("ATTACH DATABASE ':memory:' AS demo_customer")
+            connection.execute("CREATE TABLE demo_customer.orders ([Customer Key] int, Amount int)")
+            connection.execute("CREATE TABLE demo_customer.customers ([Customer Key] int, Category text)")
+            connection.executemany("INSERT INTO demo_customer.orders VALUES (?,?)",
+                                   [(1, 10), (1, -3), (2, 20), (None, 5)])
+            connection.executemany("INSERT INTO demo_customer.customers VALUES (?,?)",
+                                   [(1, "A"), (2, "B")])
+            rows = connection.execute(sql.replace("TOP (101) ", ""), params).fetchall()
+            self.assertEqual(rows, [(None, 5), ("A", 7), ("B", 20)])
+        finally:
+            connection.close()
+        with self.assertRaisesRegex(DemoError, "parent metadata"):
+            aggregate_sql(self.config, query, columns, [])
+
+    def test_join_guard_stops_duplicate_or_orphan_results(self):
+        self.aggregate()
+        self.plan["queries"][0].update(
+            join={"column": "Amount", "parent_table": "customers", "parent_column": "Amount"},
+            group_by=[{"column": "Amount", "name": "amount_group", "source": "parent"}])
+        config, state = read(self.root)
+        config["existing_data"]["tables"].append({"name": "customers", "purpose": "Parent"})
+        state["gates"]["data-readiness"]["status"] = "approved"
+        with patch("demo_accelerator.sql_runner.context", return_value=(config, state)):
+            approve_plan(self.root, self.plan, "Reviewed guarded aggregate")
+        inventory = json.loads((self.root / state["resources"]["shortcut_inventory"]["evidence"]).read_text())
+        # Exercise the guarded runtime without altering generated immutable configuration.
+        for counts in (
+                {"parent_rows": 2, "distinct_parent_keys": 1, "null_parent_keys": 0,
+                 "orphan_rows": 0},
+                {"parent_rows": 1, "distinct_parent_keys": 1, "null_parent_keys": 0,
+                 "orphan_rows": 1}):
+            with patch("demo_accelerator.sql_runner.context", return_value=(config, state)), patch(
+                    "demo_accelerator.existing_data.shortcut_bindings",
+                    return_value=inventory["bindings"]):
+                def factory(server, database, timeout):
+                    session = self.factory(server, database, timeout)
+                    original = session.query
+                    def query(sql, params, limit):
+                        if "orphan_rows" in sql:
+                            session.calls.append((sql, params, limit))
+                            return [counts]
+                        return original(sql, params, limit)
+                    session.query = query
+                    return session
+                with self.assertRaisesRegex(DemoError, "Join quality failed"):
+                    self.execute(self.plan, factory)
+                self.assertFalse(any("LEFT JOIN" in c[0] for c in self.sessions[-1].calls))
 
 
 class OdbcTests(unittest.TestCase):

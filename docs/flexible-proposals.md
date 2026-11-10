@@ -30,7 +30,8 @@ Source mutation is prohibited; shortcuts alone do not enforce that boundary.
 For automated assessment with a stricter timeout than the SQL MCP exposes,
 the operator may explicitly select the optional project-owned ODBC runner.
 See [timeout-controlled SQL runner](../README.md#optional-timeout-controlled-sql-runner).
-It accepts hash-approved structured metadata, single-table aggregate and count-only
+It accepts hash-approved structured metadata, explicit text conversion checks,
+bounded aggregates/groups, one guarded many-to-one join and count-only
 relationship plans, not
 arbitrary SQL or raw records. It preserves immutable runs, verifies execution
 identity and shortcut drift, and retains per-request evidence. It does not infer

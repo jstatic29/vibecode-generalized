@@ -145,12 +145,29 @@ All commands also take `--run-dir`. See README's optional runner section for
 the plan schema. Plan approvals are hash-bound; changes require fresh approval.
 Reauthentication must not silently change the expected identity.
 
-Only allowlisted column metadata, single-table aggregates and fixed count-only
-relationship checks are supported, with parameterized filters and quoted/live-checked
+Only allowlisted column metadata, explicit text conversion checks, bounded aggregates
+and fixed count-only relationship checks are supported, with parameterized filters and quoted/live-checked
 columns. Relationship plans identify child/parent columns and an approved parent
 table; matching live types are required. EXISTS avoids parent-duplicate fanout;
-null/orphan and parent distinct counts are separate. No arbitrary SQL, raw rows,
-grouping, general joins or automatic model inference. Unsupported business-grain
+null/orphan and parent distinct counts are separate. Aggregate plans may opt into
+up to three groups and one guarded many-to-one LEFT JOIN. The join guard requires
+unique nonnull parent keys and no nonnull orphans. Text conversions explicitly select
+decimal(28,6), bigint, canonical ISO date or midnight-only ISO timestamp-to-date and
+null policy; timestamp-to-date allows T-separated values without timezone, with
+at most six fractional digits, never silent nonmidnight truncation. Full-table invalid/blank
+and disallowed-null counts block analytical execution. Excess decimal fractional
+precision is rejected, not rounded. Single-row equality checks can stop the package
+on key/relationship findings. Include repeated guard/conversion scans in approval.
+For seven-fractional-digit space-separated keys, `odbc_midnight_date` accepts
+only the exact `YYYY-MM-DD 00:00:00.0000000` form and verifies the date prefix;
+any nonzero time/fraction fails, without rounding through datetime2(6).
+Reconcile the SQL ratio_of_sums percentage locally from exact sum outputs; do not average row ratios.
+Separate reads do not establish a consistent source snapshot.
+When encoding is unresolved, an independently approved `date_formats` plan can
+return only parser-acceptance, separator and length counts for named text date
+columns. It chooses no mapping; overlapping parser acceptance is not proof of
+date semantics. Never fetch sample records or guess a locale to bypass a failure.
+No arbitrary SQL, raw rows, general joins or automatic model inference. Unsupported business-grain
 or fiscal checks remain specialist work; disclose gaps.
 The runner rechecks shortcut target drift, enforces per-statement ODBC timeout
 and rejects result overflow. Scan budgets are owner-reviewed, not a byte quota.

@@ -274,7 +274,54 @@ count using fixed EXISTS checks. Both columns are live-checked for matching
 SQL types. Duplicate parents do not multiply children. No measures or filters
 are accepted for this kind; include both tables' scan costs in plan approval.
 
-There is **no arbitrary SQL, raw-row selection, grouping, general joins, expressions,
+Text-backed sources can opt into explicit per-query `conversions`, for example
+`{"column":"Profit","type":"decimal","allow_null":false}`. Supported mappings
+are `decimal` (decimal(28,6), rejects more than six fractional digits rather than
+rounding), `integer` (bigint), and `iso_date` (trimmed canonical YYYY-MM-DD only).
+There is no locale guessing, separator removal or default-to-zero.
+`iso_timestamp_date` can instead explicitly map
+`YYYY-MM-DDT00:00:00[.ffffff]` date keys to dates: at most six fractional digits,
+midnight only, no timezone suffix or alternative separator. Nonmidnight values
+fail rather than silently losing time. Before an
+aggregate, full-table count-only checks detect invalid/blank text and disallowed
+nulls, even outside the filtered period; any failure stops the package. A separate
+`kind: "conversion"` query returns the same counts and stops on failed quality.
+Conversions require live text columns and explicit null policy. Repeated checks
+add full-history scans that must be included in approval.
+
+`odbc_midnight_date` explicitly accepts only
+`YYYY-MM-DD 00:00:00.0000000`: a space separator and seven zero fractional digits.
+The date prefix must round-trip canonically; any nonzero time/fraction fails.
+It never rounds a seventh fractional digit through datetime2(6).
+
+For unresolved text date encoding, `kind: "date_formats"` with a `date_columns`
+list returns counts of parser acceptance for six fixed styles (23, 126, 121,
+101, 103, 112), null counts, length bounds and separator/leading-quote counts.
+It returns no date strings and chooses no mapping. Parser acceptance can overlap
+and does not prove semantic correctness or remove the need for conversion approval.
+
+Aggregates optionally accept up to three `group_by` entries, for example
+`{"column":"Invoice Date Key","name":"month","date_part":"month"}`.
+Only calendar `year`/`month` extraction from a date type is supported.
+Groups are ordered and bounded by the run's result cap; overflow fails, not a
+silently truncated top-N. One optional `join` uses the relationship object shape
+above and a LEFT JOIN to preserve null child keys. Before execution, a full-table
+guard checks matching raw key types, unique nonnull parent keys and no nonnull
+orphans. Parent groups use `"source":"parent"`; base groups default to `"base"`.
+No converted-key joins or inferred relationships are provided.
+
+Single-row aggregate/relationship queries can add `checks`, for example
+`{"column":"null_key","equals":0}` or
+`{"column":"row_count","equals_column":"distinct_key"}`. Failed checks preserve
+the finding and stop remaining queries. The `ratio_of_sums` measure takes
+`numerator` and `denominator` column names and computes
+`100 * SUM(numerator) / NULLIF(SUM(denominator), 0)` using explicit decimals;
+an overflowing sum fails rather than falling back. Reconcile this SQL percentage
+locally from exact sum outputs, never averages of row ratios. These separate reads are not a
+transactionally consistent source snapshot; concurrent source drift remains a
+readiness/publication limitation.
+
+There is **no arbitrary SQL, raw-row selection, general joins, arbitrary expressions,
 DDL/DML or automatic profiling**. Unsupported assessments (including business-grain
 and fiscal semantic checks) remain specialist work; this runner cannot by itself complete
 data-readiness. Scan budgets are reviewed scope, not an engine-enforced byte/row
