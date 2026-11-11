@@ -35,6 +35,33 @@ minutes separately. Do not estimate missing times as measured results.
 | Agent and publication | | | |
 | Acceptance/handoff | | | |
 
+## Usage and cost
+
+Follow [pilot usage tracking](presenter-pilot.md#pilot-usage-and-cost-tracking).
+Keep the completed worksheet/report and detailed billing evidence private,
+outside immutable generated artifacts. Missing usage is unknown, not zero.
+
+| Measurement | Result / evidence / limitations |
+|---|---|
+| Accounting window start/end and timezone | |
+| Usage worksheet/report revision and private references | |
+| Copilot sessions included, child sessions and support coverage | |
+| Native pilot-copilot-usage snapshots; completeness status and last accounted time | |
+| AI credits consumed; session total or account delta; capture times | |
+| Account isolation, cycle resets, unrelated usage and reporting delay | |
+| Fabric capacity/workspace/item/operation filters and metrics capture time | |
+| Capacity-billed CU-seconds / CU-hours | |
+| Separately billed Spark autoscale CU-seconds / CU-hours | |
+| Nonbillable CU-seconds / CU-hours, kept separate | |
+| Background/unfinished operations and late-arriving metrics | |
+| Estimated value by service/currency; rate, region, source/date and allocation basis | |
+| Actual incremental charges, if available; included credits/reservations/shared capacity | |
+| Missing metrics and excluded storage/network/licenses/other services | |
+
+Do not present tokens, premium requests or internal model billing multipliers
+as AI credits. A consumption allocation estimate is not an invoice, and
+account-wide credit deltas are not exact session usage when other activity overlaps.
+
 ## Evidence and result
 
 Use pass, fail, blocked, deferred or not assessed. Include exact private

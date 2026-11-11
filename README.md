@@ -53,6 +53,7 @@ run evidence, not in the portable skill.
 | Raw JSON -> bronze -> silver -> gold notebook | Generated from the proposal; one synthetic project-finance data build live-validated |
 | Durable notebook deployment/job monitoring | One live notebook build completed, including recovery after an async create response; mocked recovery checks also retained |
 | Approval gates, artifact integrity and evidence | Implemented |
+| Pilot usage accounting | Read-only native Copilot session credit capture; operator-supplied Fabric CU summaries and optional sourced-rate allocation estimates; no billing-system collection |
 | Ontology and graph | Dynamic contracts/runbook; one specialist-assisted six-entity finance projection live-verified after native binding repair |
 | Data agent | Finance data-to-IQ walkthrough accepted and IQ gate closed with SQL, ontology, graph and published-agent evidence; retained scope limitations documented in the companion |
 | Rayfin app | Dynamic contracts/runbook; specialist-assisted deployment and live acceptance pending |
@@ -118,6 +119,11 @@ a fresh-conversation starting prompt, explicit manual checkpoints and a
 quality without distributing live resource identities or private run state.
 The pilot covers data through Fabric IQ; semantic model, Planning and app are
 excluded. Preparing this kit does not establish a successful second-presenter run.
+The guide also covers [pilot usage and cost tracking](docs/presenter-pilot.md#pilot-usage-and-cost-tracking):
+`pilot-copilot-usage` reads native session credits without a model call;
+`pilot-usage-template` and `pilot-usage-report` preserve private measurement
+provenance, distinguish unknown usage from zero and keep credits separate from
+capacity/Autoscale Spark CU consumption. They do not retrieve billing data.
 
 Python 3.11+ is sufficient for local preparation, with no third-party runtime packages.
 Run commands from this repository's root. Optional installation:

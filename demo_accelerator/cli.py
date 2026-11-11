@@ -21,6 +21,20 @@ def parser():
                       help="Optional legacy regression example; omit for an industry-independent brief")
     init.add_argument("--output", required=True, type=Path)
     init.add_argument("--data-mode", choices=["synthetic", "existing-lakehouse"], default="synthetic")
+    usage_template = commands.add_parser(
+        "pilot-usage-template", help="Write a private usage worksheet; no network calls")
+    usage_template.add_argument("--output", required=True, type=Path)
+    usage_report = commands.add_parser(
+        "pilot-usage-report", help="Summarize operator-supplied credits and CU usage; no network calls")
+    usage_report.add_argument("usage", type=Path)
+    usage_report.add_argument("--output", required=True, type=Path)
+    copilot_usage = commands.add_parser(
+        "pilot-copilot-usage", help="Read native session AI credits without a model call")
+    source = copilot_usage.add_mutually_exclusive_group(required=True)
+    source.add_argument("--session-dir", type=Path)
+    source.add_argument("--usage-file", type=Path)
+    copilot_usage.add_argument("--session-ref", help="Required for a native usage export")
+    copilot_usage.add_argument("--output", required=True, type=Path)
     plan = commands.add_parser("plan", help="Validate and preview scenario; no writes to Fabric")
     plan.add_argument("config", type=Path)
     build = commands.add_parser("generate", help="Generate an immutable local run")
@@ -49,6 +63,31 @@ def parser():
 
 
 def execute(args):
+    if args.command in {"pilot-usage-template", "pilot-usage-report", "pilot-copilot-usage"}:
+        from .pilot_usage import summarize, template
+        if args.command == "pilot-copilot-usage":
+            from .copilot_usage import read_export, read_session
+            if args.usage_file:
+                if not args.session_ref or not args.session_ref.strip():
+                    raise DemoError("--session-ref is required with --usage-file")
+                result = read_export(args.usage_file, args.session_ref)
+            else:
+                result = read_session(args.session_dir)
+        else:
+            result = (template() if args.command == "pilot-usage-template" else
+                      summarize(json.loads(args.usage.read_text(encoding="utf-8-sig"), parse_float=str)))
+        args.output.parent.mkdir(parents=True, exist_ok=True)
+        with args.output.open("x", encoding="utf-8") as stream:
+            json.dump(result, stream, indent=2)
+            stream.write("\n")
+        if args.command == "pilot-copilot-usage":
+            return {"output": str(args.output), "network_calls": False,
+                    "ai_credits_status": result["ai_credits_status"],
+                    "reported_ai_credits": result["reported_ai_credits"],
+                    "last_accounted_at": result["last_accounted_at"]}
+        return {"output": str(args.output), "network_calls": False,
+                "kind": "operator-supplied usage worksheet" if args.command == "pilot-usage-template"
+                        else "usage summary and optional allocation estimate; not a bill"}
     if args.command == "init":
         if args.scenario and args.data_mode != "synthetic":
             raise DemoError("Legacy scenarios cannot use existing-lakehouse mode")

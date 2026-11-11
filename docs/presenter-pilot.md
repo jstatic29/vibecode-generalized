@@ -39,6 +39,7 @@ Before customer-specific work, verify:
 | Fabric specialists | Current Spark and SQL endpoint guidance, supported generation-2 ontology authoring/graph guidance, and current data-agent API/docs available |
 | Execution tools | SQL Endpoint MCP available; identify the agent runtime route or an operator-run portal route before testing |
 | Fabric access | Presenter signs in with their own approved identity; existing workspace, capacity, required previews and item permissions confirmed |
+| Usage accounting | Identify the Copilot usage source and a capacity owner who can provide pilot-filtered Fabric CU metrics; see usage tracking below |
 | Boundaries | No production records, credentials in files, copied reference state, unapproved writes or destructive cleanup |
 
 Load current specialists before their phases. A skill name alone does not prove
@@ -85,7 +86,12 @@ Open a new Copilot conversation rooted in this checkout and paste:
 > recommend a small deterministic model for my selection. Do not assume a schema
 > or relabel the finance/healthcare scenario. Exclude semantic model, Planning
 > and Fabric app. Keep explicit approval gates, use durable notebook jobs,
-> preserve evidence and stop at unsupported operations. Do not deploy yet.
+> preserve evidence and stop at unsupported operations. Prepare pilot usage
+> tracking before work. Use pilot-copilot-usage against this session's own
+> native usage state at phase boundaries and handoff, saving private snapshots.
+> Capture Fabric CU measurements separately with their provenance, and never
+> substitute token counts or premium request multipliers for credits.
+> Do not deploy yet.
 
 Supply a real public website, audience, source descriptions, the approved
 workspace and an intended demo-duration/data budget. These describe context,
@@ -139,6 +145,180 @@ Fill required evidence truthfully and obtain approval before the documented
 evidence or waive failed checks. Keep owner scope decisions explicit.
 The final rehearsal gate still has its own requirements; do not call the whole
 run `demo_ready` merely because this limited IQ pilot is accepted.
+
+## Pilot usage and cost tracking
+
+The local CLI reads **native Copilot session AI credits**, totals those credits
+and operator-supplied Fabric CU-seconds, and optionally values them using
+supplied, sourced rates. It does not retrieve account billing records, read
+another presenter's Copilot history, query the Capacity Metrics model or change
+Fabric resources. No extra dependencies are needed for native local-session
+capture; collecting Fabric measurements needs the capacity owner's help.
+
+Before the first pilot question, create a private worksheet outside the immutable
+generated run (this can happen before a run exists):
+
+```powershell
+python -m demo_accelerator pilot-usage-template --output .demo-runs\presenter-pilot-001-operations\usage-v1.json
+```
+
+Record timezone-qualified `window.start` and `window.end` for the whole pilot,
+including research/setup. Fill `coverage_notes` with missing sessions, waits,
+delayed measurements, shared activity and exclusions. Numbers may be JSON
+numbers or decimal strings. Leave unavailable quantities as `null`, never zero.
+An empty array means no measurements supplied, not verified zero consumption.
+Each measurement needs a distinct `scope_ref`, `evidence_ref` and timezone-qualified
+`captured_at`. These references identify private saved evidence; the CLI does
+not open or independently verify that evidence.
+
+### Collect Copilot credits
+
+**Copilot should capture this itself, rather than asking the presenter to type
+credit totals.** In the installed CLI, `/usage` is the equivalent of a session
+`/cost` display. For the accelerator's read-only equivalent, have Copilot use
+its host-provided current session folder (do not guess a UUID or scan other
+presenters' sessions):
+
+```powershell
+python -m demo_accelerator pilot-copilot-usage --session-dir "<current-session-folder>" --output .demo-runs\presenter-pilot-001-operations\copilot-credits-end.json
+```
+
+This reads the native accounting checkpoint plus newer usage records, deduplicates
+them by source-session sequence and converts the runtime's `totalNanoAiu`:
+**1,000,000,000 nano-AI units = 1 AI credit**. It does not infer a price from tokens,
+launch Copilot, resume the session, make a model call or require an SDK install.
+Capture at the start, phase boundaries and handoff using distinct output names.
+It is a snapshot of recorded usage; in-flight work and the final reply can add
+credits. On a reused session, the full session total is not the pilot total:
+use same-session start/end snapshots and disclose their difference/coverage,
+or use the required fresh pilot conversation.
+
+The output preserves `ai_credits_status` and includes a ready-to-use
+`worksheet_entry`. Copilot copies that entry into the usage worksheet, changing
+`evidence_ref` to the saved snapshot path. Partial or unavailable totals retain
+their reported subtotal separately and leave the worksheet's complete credit
+quantity unknown. Unsupported native schemas, missing checkpoints, sequence gaps
+and torn writes fail explicitly. This adapter is runtime-specific; it was checked
+against the installed session format on 2026-11-11, not every Copilot host.
+
+For a presenter starting the standalone CLI, its native final export is another
+route:
+
+```powershell
+copilot --usage-output-file .demo-runs\presenter-pilot-001-operations\copilot-native-final.json
+# After that session exits:
+python -m demo_accelerator pilot-copilot-usage --usage-file .demo-runs\presenter-pilot-001-operations\copilot-native-final.json --session-ref "<pilot-session-id>" --output .demo-runs\presenter-pilot-001-operations\copilot-credits-final.json
+```
+
+Run the launch command only when the presenter intends to start their pilot CLI,
+not inside an active agent as a way to read its usage. Check `copilot --help`
+and `copilot help billing` for support. Existing SDK integrations can instead
+call the experimental
+[`session.usage.getMetrics`](https://github.com/github/copilot-sdk/blob/main/docs/features/usage-and-billing.md#accumulated-ai-credit-and-token-totals)
+on the session they already own and save its result; do not create a new empty
+session to measure an existing conversation. Native imports require both the
+credit total and its completeness status; legacy request counts are not credits.
+
+Record one non-overlapping cumulative entry per session, including support work
+when attributable. Runtime-attributed subagent consumption is already included:
+do not add its per-agent breakdown again. Separate sessions count separately only
+when not already included in the parent total. Resumed cumulative totals replace
+earlier totals rather than being added to them.
+
+**Fallback only:** if the host cannot expose native usage, record the limitation
+and use `/usage` output or
+[GitHub's AI usage view](https://docs.github.com/en/copilot/how-tos/manage-and-track-spending/monitor-ai-usage):
+Business/Enterprise users can view consumption in Copilot settings; individual
+users can use Billing and licensing -> AI usage. Save timestamped before/after
+consumed-credit readings from the **same billing cycle**, wait for reporting
+to settle, and enter `after - before` as `credits`. Do not subtract remaining
+allowances, budgets or percentages. If a cycle reset occurs, split at the reset
+using valid cycle-specific evidence; do not turn a negative difference into zero.
+Use `isolated-account-delta` only when no other account activity occurred.
+Otherwise use `shared-account-delta`, which the report marks approximate, and
+disclose unrelated activity. GitHub does not generally guarantee prompt/session
+attribution in billing reports. If isolation is impossible, leave usage unknown
+instead of claiming exact pilot credits.
+
+Do not mix overlapping account deltas and session totals. Tokens, request counts,
+legacy premium requests and a host's internal model billing multipliers are not
+AI credits; no conversion is implemented. Included credits consumed are not
+necessarily additional charges. Record actual incremental billing separately
+in the private pilot report.
+
+### Collect Fabric CU consumption
+
+Ask the capacity owner to use the
+[Capacity Metrics app compute page](https://learn.microsoft.com/en-us/fabric/enterprise/metrics-app-compute-page)
+and save evidence filtered to the pilot's capacity, workspace, exact items,
+operations and time range. Record the filters and capture timestamp. The compute
+page has a rolling 14-day view; save evidence promptly. Capture operation CU
+processing seconds, **not duration seconds, utilization percentages or smoothed
+timepoint percentages**. A shared capacity's entire usage is not pilot usage.
+Do not export unrelated users' activity or customer records.
+
+Use separate, non-overlapping entries for `billing_mode`:
+`capacity`, `spark-autoscale` and `nonbillable`. The CLI divides CU-seconds by
+3,600 to report CU-hours separately for each mode; it never prices nonbillable
+operations. Autoscale Spark needs its own metering evidence and rate, not the
+base capacity rate. Record missing/unsupported metrics as unknown. Do not sum
+item totals with the same operations' detail rows.
+
+Allow for delayed metrics, background jobs and smoothing after the chat ends.
+Record unfinished jobs and extend the accounting window for their consumption
+when possible; a local timeout does not end a remote job or its cost. Save a
+new worksheet/report revision when late evidence arrives, without modifying
+generated artifacts or double-counting earlier totals.
+
+### Produce the report and optional estimate
+
+```powershell
+python -m demo_accelerator pilot-usage-report .demo-runs\presenter-pilot-001-operations\usage-v1.json --output .demo-runs\presenter-pilot-001-operations\usage-report-v1.json
+```
+
+All three accounting commands refuse to overwrite existing files and make no network calls.
+The report preserves measurements/rate provenance, missing usage, unpriced
+entries, credits by attribution and CU-hours by billing mode. `reported` means
+all supplied entries have quantities, **not independently verified complete
+pilot coverage**. Unknown usage stays unknown; measured subtotals are not
+complete totals.
+
+Keep `rate: null` for usage-only reporting. To calculate an optional estimate,
+replace it on each priced entry with this structure (replace every placeholder):
+
+```json
+{
+  "per_unit": "<verified decimal rate>",
+  "currency": "<three-letter currency code>",
+  "source": "<private billing evidence or live pricing reference>",
+  "as_of": "<YYYY-MM-DD>"
+}
+```
+
+For Copilot the unit is **one AI credit**, not a token or premium request.
+For Fabric the unit is **one CU-hour**; also add `"region": "<verified Azure region>"`.
+Before supplying Fabric rates, load the cost-estimation specialist, resolve the
+actual region and fetch the current
+[Azure Retail Prices API](https://prices.azure.com/api/retail/prices)
+rates, preserving the selected meter, currency and capture date as evidence.
+Base capacity and autoscale Spark are distinct meters; no hardcoded rate or
+fallback is provided. For contracted/internal allocations, document the approved
+basis rather than representing it as public pricing. Have the billing owner
+confirm the applicable Copilot rate and treatment of included credits.
+
+The report computes `credits * rate` and `CU-seconds / 3600 * rate`, separately
+by service and currency, only when all supplied billable entries for that service
+are measured and priced. It does not convert currencies or claim a combined
+invoice total. Capacity consumption valued at a per-CU-hour rate is an
+**allocation estimate**, not the incremental charge for an already provisioned
+shared capacity. Actual capacity billing depends on SKU, billed uptime,
+reservations and separately billed usage. Storage, networking, licenses,
+other services and post-window activity are excluded; record these limitations
+and any actual billing evidence in the pilot report.
+
+Keep completed worksheets, billing exports and reports private. Return only a
+sanitized summary with the pilot feedback. Usage evidence does not grant
+deployment approval or complete any demo gate.
 
 ## Recovery and support
 
