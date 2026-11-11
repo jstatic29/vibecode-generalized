@@ -50,8 +50,8 @@ run evidence, not in the portable skill.
 | Flexible proposed schema, grains, sources, references and metrics | Implemented, validated declarative recipes |
 | Deterministic local previews and exact expected answers | Implemented |
 | Existing data through manual table shortcuts | Lakehouse-backed and Warehouse-backed routes complete for the operator-accepted SQL-only walkthrough scope; see route acceptance below |
-| Raw JSON -> bronze -> silver -> gold notebook | Generated from the proposal; one synthetic project-finance data build live-validated |
-| Durable notebook deployment/job monitoring | One live notebook build completed, including recovery after an async create response; mocked recovery checks also retained |
+| Raw JSON -> bronze -> silver -> gold notebook | Generated from the proposal; finance reference and second-industry pilot data stages verified within documented limits |
+| Durable notebook deployment/job monitoring | Finance reference and pilot data jobs completed, including async-create recovery; SDK evaluation's durable path remains unverified |
 | Approval gates, artifact integrity and evidence | Implemented |
 | Pilot usage accounting | Read-only native Copilot session credit capture; operator-supplied Fabric CU summaries and optional sourced-rate allocation estimates; no billing-system collection |
 | Ontology and graph | Dynamic contracts/runbook; one specialist-assisted six-entity finance projection live-verified after native binding repair |
@@ -72,12 +72,17 @@ to repair lakehouse bindings; exported ontology key types and materialized graph
 key types differ, as documented in [Flexible proposals](docs/flexible-proposals.md).
 The selected ontology flow uses the dedicated `/ontologies` API, not Ontology
 Agent. After the final API write, the operator opens each entity's **Bind data ->
-Properties**, reselects the correct **Source column** from its already bound
-lakehouse table, saves and verifies all mappings and graph eligibility.
+Properties**, inspects all mappings and graph eligibility, and repairs only
+unresolved **Source column** mappings from its already bound lakehouse table.
+The [native binding handoff](docs/ontology-bindings.md) records the later
+eight-annotation pilot observation without claiming a universal binding fix.
 The [materialized graph query handoff](docs/graph-query-handoff.md) documents
 direct GQL execution through the beta Graph Query API, target discovery,
 authentication, continuation/error handling and SQL reconciliation evidence.
 It is a portable runbook, not an automatic query adapter or an agent invocation.
+See [second-industry pilot findings](docs/second-industry-pilot.md) for what the
+environmental-services pilot verified, the incorporated recovery/evaluation
+safeguards, and the still-pending independent-presenter, graph and IQ acceptance.
 This is not live verification of other scenarios, DAX, agents or apps, nor a
 completed full-stack reference or second-presenter run.
 New industries do not require new Python code when their schemas fit the supported

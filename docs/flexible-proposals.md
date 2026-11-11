@@ -317,8 +317,11 @@ Ontology endpoints: `POST /v1/workspaces/{workspaceId}/ontologies` for creation
 and `POST /v1/workspaces/{workspaceId}/ontologies/{ontologyId}/updateDefinition`
 for approved definition updates. Author both physical backing joins and business
 relationships. Do not use the Ontology Agent in this flow.
-Native property reselection is an explicit operator step after the final API
-write and before graph materialization, including for copies of repaired definitions:
+Native binding inspection is an explicit operator step after the final API
+write and before graph materialization, including for copies of repaired definitions.
+Repair unresolved mappings only; do not reselect properties that already work.
+See [native binding observations](ontology-bindings.md) for the later second-industry
+annotation recipe and its limitations. The inspection checkpoint remains required:
 
 Finish rule authoring before this checkpoint too: use business-readable rule
 names rather than numbered placeholders or internal metric IDs, preserve rule
@@ -345,12 +348,13 @@ ontology/graph portion of the selected flow, not the still-pending data agent,
 semantic model or app.
 
 1. In the native ontology editor, click each entity, then **Bind data**, then
-   **Properties**. In the **Source column** dropdown, expand the existing bound
+   **Properties** and verify every mapping. For unresolved mappings only,
+   in the **Source column** dropdown, expand the existing bound
    lakehouse table and reselect the correct source column for a property, then
    click **Save**. For example, Project's `project_id` maps to
    `dim_project.project_id`. In the finance test, reselecting one property restored
    the whole entity's property bindings; verify every mapping and reselect any
-   still unresolved. Repeat for every entity. Keep the existing primary lakehouse
+   still unresolved. Inspect every entity; repair only where needed. Keep the existing primary lakehouse
    binding; do not add a secondary binding or change approved keys, grains or joins.
 2. Verify property rendering and all selected entities' graph eligibility. A source
    card showing the right lakehouse is insufficient. Stop on unsupported sources
@@ -370,7 +374,7 @@ generated runs to retrofit these instructions.
 
 Historical investigation only: the operator explicitly excluded Ontology Agent
 authoring from the selected deployment flow. Do not suggest or invoke it as an
-automatic alternative to the API-plus-native-reselection procedure above.
+automatic alternative to the API-plus-native-inspection procedure above.
 
 A separate empty finance test ontology was authored through the native Ontology
 Agent, with discovery/draft/validation in Plan mode and an explicitly approved
@@ -734,7 +738,7 @@ These six labels also became the ontology relationship names in an approved
 dedicated API update on 2026-11-05, with all 11 referencing rules updated and
 lineage/backing joins preserved. Readback confirmed the names and links, but
 again removed the native identity annotations on all six table partitions.
-The operator must repeat property reselection and graph materialization/refresh
+The operator must repeat binding inspection, repair unresolved mappings, and graph materialization/refresh
 as needed; the earlier runtime verification predates this rename and does not
 establish post-rename graph acceptance.
 

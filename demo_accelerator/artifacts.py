@@ -91,7 +91,8 @@ def ontology_contract(config):
             "Use the current ontology skill and validate supported generation-2 API/TMDL.",
             "Use dedicated /ontologies create/updateDefinition endpoints, not Ontology Agent.",
             "Use business-friendly entity, ontology relationship name/label and rule names before final native rebinding; keep technical physical join IDs separate and update rule relationship references.",
-            "After the final API write, each entity: Bind data -> Properties -> Source column; reselect from its existing bound lakehouse table, Save, verify all mappings and graph eligibility.",
+            "After the final API write, inspect every entity's source identity, Properties mappings and graph eligibility. Reselect Source column from its existing bound lakehouse table only for unresolved mappings; save and reverify. Never skip inspection.",
+            "Preserve native lakehouse partition annotations; see docs/ontology-bindings.md for the observed eight-annotation recipe and its limits.",
             "Persist lineage tags per run; diff portal-written bindings before updateDefinition.",
             "No Decimal graph properties: money is int64 cents.",
             "After portal refresh, verify edge counts and properties through actual GQL.",
@@ -484,16 +485,22 @@ Give entities, ontology relationship names AND labels, and rules business-friend
 names before deployment; the Relationship Types sidebar displays names, not labels.
 Keep technical physical join IDs separate. Preserve lineage and update linked rule
 references when renaming ontology elements. Finish naming/rule edits before rebinding.
-Deploy once, diff readback. After the final API write, the operator must open each
-entity -> Bind data -> Properties -> Source column, expand the existing bound
-lakehouse table, reselect the correct source column for a property, and Save.
-One reselection restored all properties for an entity in the finance test; verify
-every mapping and reselect any still unresolved. Repeat for every entity without
-recreating its lakehouse binding. Verify graph eligibility and capture fresh
-definition readback. Full-definition updates can remove these native repairs:
-finish API edits first, or repeat this checkpoint after an approved later update.
+Deploy once, diff readback. After the final API write, inspect each entity's
+source identity, Bind data -> Properties mappings and graph eligibility.
+If mappings remain unresolved, reselect the correct Source column from the
+existing bound lakehouse table, Save and verify every mapping again. Do not
+reselect already-correct properties merely to satisfy a checklist. Inspection
+remains mandatory even when no repair is needed. See docs/ontology-bindings.md
+for the observed native annotation recipe; definition readback alone is not
+proof of effective bindings. Full-definition updates can remove repairs:
+finish API edits first, then repeat inspection after any approved later update.
 Materialize only after the applicable approval. Completion of a refresh is not proof:
 query actual properties, relationship counts and aggregate parity with SQL.
+Use the graph model's distinct ID with the approved direct GQL route
+POST /v1/workspaces/{{workspaceId}}/graphModels/{{graphModelId}}/executeQuery?beta=true.
+See docs/graph-query-handoff.md. An ontology-agent tool limitation is not proof
+that this API is unavailable. If specialist guidance conflicts, stop for separate
+approval of the reviewed public-API route; never silently switch execution paths.
 Configure lakehouse source,
 instructions and SQL examples. Select scenario-relevant facts and supporting business,
 calendar and period dimensions from the approved analytical model, not just the
@@ -518,6 +525,10 @@ does not establish answer accuracy or ontology use.
 Start with one capacity-health question, then a small bounded repeated sample, concurrency <=2.
 Record SQL/graph parity and draft/published results separately, including known issues.
 Do not claim a SQL answer proves graph execution. Do not retry through capacity throttling.
+Optional SDK evaluation writes result tables: see docs/data-agent-evaluation.md.
+Verify the SDK version, eval_result destination and both table collision checks
+before an approved run. Do not substitute interactive success for durable-job
+acceptance. Preserve session ownership and later CU measurement requirements.
 
 ## 5. Optional semantic model gate
 Enabled: {config['features']['semantic_model']}.

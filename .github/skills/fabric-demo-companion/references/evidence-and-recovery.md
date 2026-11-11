@@ -52,11 +52,24 @@ or interpret timeout as cancellation. Surface ambiguous writes and permissions/
 capacity/authentication failures; do not replace errors with success-shaped defaults.
 If unable to resolve, hand off the saved operation and precise blocker.
 
+For the observed regional `wabi-*.analysis.windows.net/v1/operations/{UUID}`
+create Location, the data adapter polls that same operation path on the canonical
+Fabric API host. It does not broaden credential destinations or follow redirects.
+Other hosts/paths remain rejected; preserve the original Location as provenance.
+
 ## Handoff checklist
 
 - Scenario/run path, immutable artifact version/hash and current feature selection.
 - Completed phase actions with separate machine evidence and operator reports.
 - Existing identities and outstanding operations located in private evidence.
+- A private package outside session storage, with relative source-reference index,
+  SHA-256 manifest and explicit omissions; keep originals and corrected revisions
+  separate. Do not bundle credentials, native conversation events or unrelated
+  scripts. An ignored directory does not enforce private access.
+- Matching final usage worksheet/report and unknown CU/timing values, not zeroes.
+- Evaluation output namespace/collision guard, dependency version, job versus
+  interactive outcome and last-observed session owner/status. Unknown ownership
+  must be resolved before further execution; shutdown/reruns need approval.
 - Manual checkpoints still required, pending approvals and validation blockers.
 - Next exact acceptance check, expected baseline and success criteria.
 - For graph checks, follow the [graph query handoff](../../../../docs/graph-query-handoff.md):

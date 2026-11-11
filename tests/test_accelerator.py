@@ -14,7 +14,7 @@ from unittest.mock import patch
 from demo_accelerator.artifacts import analytical_sql, generate, notebook, semantic_contract
 from demo_accelerator.config import DemoError, SCENARIOS, digest, example, validate
 from demo_accelerator.data import build_data
-from demo_accelerator.fabric import Client, deploy_data, ensure_item, preflight
+from demo_accelerator.fabric import Client, deploy_data, ensure_item, poll_operation, preflight
 from demo_accelerator.state import (
     REQUIRED_CHECKS, approve, complete, initialize, locked, read, save,
 )
@@ -450,6 +450,55 @@ class DeploymentTests(RunFixture):
             with self.assertRaisesRegex(DemoError, "Still running"):
                 ensure_item(fake, self.root, state, "workspace", "Lakehouse", "lh_demo", {}, 0)
         self.assertEqual(fake.posts, [])
+
+    def test_operation_polling_preserves_identity_without_resubmission(self):
+        from unittest.mock import Mock
+        operation = "11111111-2222-4333-8444-555555555555"
+        path = f"/v1/operations/{operation}"
+        canonical = f"https://api.fabric.microsoft.com{path}"
+        for location, expected in (
+            (f"https://wabi-west-us3-a-primary-redirect.analysis.windows.net{path}", path),
+            (path, path), (canonical, canonical),
+        ):
+            with self.subTest(location=location):
+                client = Mock()
+                client.request.return_value = (200, {}, {"status": "Succeeded"})
+                poll_operation(client, location, 0)
+                client.request.assert_called_once_with("GET", expected)
+
+    def test_regional_operation_normalization_does_not_weaken_host_guard(self):
+        operation = "11111111-2222-4333-8444-555555555555"
+        regional = "wabi-west-us3-a-primary-redirect.analysis.windows.net"
+        urls = [
+            f"https://attacker.example/v1/operations/{operation}",
+            f"http://{regional}/v1/operations/{operation}",
+            f"https://{regional}.attacker.example/v1/operations/{operation}",
+            f"https://user@{regional}/v1/operations/{operation}",
+            f"https://{regional}:443/v1/operations/{operation}",
+            f"https://{regional}/v1/operations/{operation}?target=other",
+            f"https://{regional}/v1/operations/{operation}#fragment",
+            f"https://{regional}/v1/operations/{operation}/result",
+            f"https://{regional}/v1/operations/not-an-id",
+        ]
+        with patch("shutil.which", side_effect=AssertionError("must not authenticate")):
+            for url in urls:
+                with self.subTest(url=url), self.assertRaisesRegex(DemoError, "outside"):
+                    poll_operation(Client(), url, 0)
+
+    def test_operation_timeout_keeps_saved_identity_for_resume(self):
+        from unittest.mock import Mock
+        client = Mock()
+        client.request.return_value = (200, {}, {"status": "Running"})
+        state = read(self.root)[1]
+        operation = "11111111-2222-4333-8444-555555555555"
+        original = f"https://wabi-west-us3-a-primary-redirect.analysis.windows.net/v1/operations/{operation}"
+        state["resources"]["lakehouse_operation"] = original
+        save(self.root / "state.json", state)
+        with self.assertRaisesRegex(DemoError, "resume"):
+            ensure_item(client, self.root, state, "workspace", "Lakehouse", "lh_demo", {}, 0)
+        self.assertEqual(read(self.root)[1]["resources"]["lakehouse_operation"], original)
+        client.request.assert_called_once_with("GET", f"/v1/operations/{operation}")
+        client.listing.assert_not_called()
 
     def test_paginated_lists_and_continuation_token(self):
         client = Client()

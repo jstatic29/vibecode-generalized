@@ -27,16 +27,23 @@ Finish naming/rule edits before rebinding.
 
 **Observed workaround:** full-definition create/update, including dedicated
 routes, stripped native lakehouse partition identity metadata in the finance run.
-API success and plausible TMDL did not make entities graph-eligible. After the
-last API write the operator must open each entity:
+API success and plausible TMDL did not make entities graph-eligible.
+After the final API write, inspect every entity's source identity, property
+mappings, key types and native graph eligibility. Repair unresolved mappings only:
 
 **Bind data -> Properties -> Source column -> reselect the correct column from
 the existing bound lakehouse table -> Save.**
 
 One property reselection restored an entire entity in the observation, but
 verify every property and every entity; do not assume that behavior universally.
-Confirm graph eligibility. Later approved definition writes can remove repairs,
-so repeat this checkpoint as needed. Do not use Ontology Agent to bypass it.
+Do not reselect already-correct properties merely to satisfy the checklist.
+The second-industry pilot retained eight partition annotations; machine readback
+matched the expected identities and the operator reported correct bindings
+without reselection. Graph execution was skipped there, not accepted.
+See [native binding observations](../../../../docs/ontology-bindings.md) for
+the annotation recipe and its limits. Confirm graph eligibility. Later approved
+definition writes can remove repairs, so repeat inspection after each final
+write. Do not use Ontology Agent to bypass it.
 
 ## Materialization acceptance
 
@@ -56,8 +63,17 @@ For the portable execution procedure, use the
 It covers the beta `graphModels/{graphModelId}/executeQuery` GQL route,
 separate ontology/graph identity discovery, owning-skill headers, pending
 continuations, truncation/status checks and reconciliation evidence. It is not
-a deployment adapter or execution approval. Do not substitute agent answers
-or copy the reference builder's private scripts/IDs.
+a deployment adapter or execution approval. An ontology-agent tool limitation
+does not establish that direct GraphModel queries are unavailable. If current
+specialist guidance is missing/conflicting, stop for separate sponsor approval
+of a reviewed public-API route; never silently bypass specialist boundaries.
+Do not substitute agent answers or copy the reference builder's private scripts/IDs.
+
+Optional SDK evaluation writes two result tables and needs its own approval.
+Follow [evaluation safeguards](../../../../docs/data-agent-evaluation.md):
+verify the SDK version and actual destination (`eval_result` in the pilot), guard
+both summary and `_steps` collisions, and preserve job/session ownership.
+Interactive success does not prove durable compatibility or graph traversal.
 
 ## Agent analytical scope
 

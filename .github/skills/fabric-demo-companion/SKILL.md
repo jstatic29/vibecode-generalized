@@ -44,6 +44,10 @@ API support, authorization or successful deployment.
 
 If a specialist is missing, disclose it and stop that implementation phase.
 Do not install plugins or substitute historical scripts without approval.
+For the selected generation-2 ontology/graph flow, the sponsor may separately
+approve a reviewed public-API-assisted route with current definition/query docs.
+This is not a silent fallback or authority to bypass an owning skill's hard boundary;
+see the ontology/agent reference and presenter guide. Record conflicts explicitly.
 Natural-language Power BI report questions belong to `fabriciq`; do not mistake
 that consumption skill for a data-agent authoring adapter. Do not launch Project
 Osmos merely because this demo includes Spark.

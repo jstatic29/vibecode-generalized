@@ -66,6 +66,10 @@ account-wide credit deltas are not exact session usage when other activity overl
 
 Use pass, fail, blocked, deferred or not assessed. Include exact private
 evidence references and distinguish tool-executed checks from owner reports.
+Record the private bundle's relative index, SHA-256 manifest and provenance.
+List omitted supporting files and dangling historical references; do not make
+session storage a required dependency. Preserve originals and separately label
+corrections, including the final worksheet/report revision.
 
 | Check | Result | Expected / observed and evidence |
 |---|---|---|
@@ -113,6 +117,10 @@ only sanitized references in feedback returned to the repository.
 Record ambiguous operations, saved job/operation references and their outcomes.
 Do not restart a timed-out create/query to fill this report. Note unsupported
 capabilities and whether they stopped the phase.
+For SDK evaluations, record the actual summary/steps namespace, collision guard,
+SDK/runtime/environment version and interactive-versus-durable outcome.
+For open sessions, record the last status time, owner (or unknown) and separately
+required shutdown/rerun approval; a completed evaluation cell is not session shutdown.
 
 ## Reviewer decision
 

@@ -140,6 +140,13 @@ Example re-saving and source-column reselection are observed workarounds, not
 universal requirements or fixes for every error. Recheck current support; never
 hide validation failures. M365 publication/access is a separate checkpoint.
 
+Read the [second-industry pilot findings](second-industry-pilot.md) before
+repeating the exercise. [Native binding inspection](ontology-bindings.md) remains
+mandatory after final writes; source-column repair is conditional on unresolved
+mappings. Optional [SDK evaluation](data-agent-evaluation.md) needs actual-namespace
+collision checks, approved result-table writes and a reviewed dependency path;
+interactive success is not a durable-job benchmark.
+
 Use the CLI's actual gate requirements:
 
 ```powershell
@@ -151,6 +158,17 @@ Fill required evidence truthfully and obtain approval before the documented
 evidence or waive failed checks. Keep owner scope decisions explicit.
 The final rehearsal gate still has its own requirements; do not call the whole
 run `demo_ready` merely because this limited IQ pilot is accepted.
+
+Keep the final evidence somewhere private outside Copilot's session storage,
+in a new sibling operational package, not inside the immutable generated run.
+Use relative paths, a source-reference index and SHA-256 manifest. Preserve
+historical reports/readbacks unchanged; label later corrections and omissions.
+Include the matching final usage worksheet/report, pending gate status and
+outstanding job/session owner/status/required approval. If ownership was not
+recorded, say so and assign it before further execution. Do not copy credentials,
+native conversation events or unrelated scripts. An ignored folder is not an
+access control boundary; retain private evidence locally or in an approved
+private store, and return only sanitized findings to Git.
 
 ## Pilot usage and cost tracking
 

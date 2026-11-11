@@ -2,6 +2,7 @@
 
 import base64
 import json
+import re
 import shutil
 import subprocess
 import time
@@ -161,6 +162,14 @@ def ensure_item(client, root, state, workspace_id, item_type, name, body, timeou
 
 
 def poll_operation(client, url, timeout):
+    parsed = urllib.parse.urlsplit(url)
+    if (parsed.scheme == "https"
+            and re.fullmatch(r"wabi-[a-z0-9-]+\.analysis\.windows\.net", parsed.netloc)
+            and re.fullmatch(r"/v1/operations/[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-"
+                             r"[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}", parsed.path)
+            and not parsed.query and not parsed.fragment):
+        # Preserve the operation identity without sending credentials to its regional host.
+        url = parsed.path
     deadline = time.monotonic() + timeout
     while True:
         _, _, body = client.request("GET", url)
