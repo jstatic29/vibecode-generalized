@@ -51,6 +51,14 @@ If exported key types differ from runtime types, verify actual values and join
 behavior, disclose it and preserve evidence. A later definition rename/update
 invalidates assumptions that earlier graph acceptance covers the current version.
 
+For the portable execution procedure, use the
+[materialized graph query handoff](../../../../docs/graph-query-handoff.md).
+It covers the beta `graphModels/{graphModelId}/executeQuery` GQL route,
+separate ontology/graph identity discovery, owning-skill headers, pending
+continuations, truncation/status checks and reconciliation evidence. It is not
+a deployment adapter or execution approval. Do not substitute agent answers
+or copy the reference builder's private scripts/IDs.
+
 ## Agent analytical scope
 
 Use current Fabric data-agent knowledge and public authoring/publishing docs.

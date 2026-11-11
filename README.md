@@ -74,6 +74,10 @@ The selected ontology flow uses the dedicated `/ontologies` API, not Ontology
 Agent. After the final API write, the operator opens each entity's **Bind data ->
 Properties**, reselects the correct **Source column** from its already bound
 lakehouse table, saves and verifies all mappings and graph eligibility.
+The [materialized graph query handoff](docs/graph-query-handoff.md) documents
+direct GQL execution through the beta Graph Query API, target discovery,
+authentication, continuation/error handling and SQL reconciliation evidence.
+It is a portable runbook, not an automatic query adapter or an agent invocation.
 This is not live verification of other scenarios, DAX, agents or apps, nor a
 completed full-stack reference or second-presenter run.
 New industries do not require new Python code when their schemas fit the supported

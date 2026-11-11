@@ -130,6 +130,12 @@ folder such as `.demo-runs\presenter-pilot-001-operations`.
 | Handoff | Evidence, links, metrics/date caveats, owner reports versus machine checks, deferred/failed items and exact next action |
 
 Preserve the selected [agent sequence and publishing wording](../.github/skills/fabric-demo-companion/references/ontology-and-agent.md).
+For the graph checkpoint, follow the
+[materialized graph query handoff](graph-query-handoff.md): discover the graph
+model separately from the ontology, execute approved GQL through the beta
+Graph Query API, preserve continuation/error receipts and reconcile typed
+results with SQL. A data-agent answer is not a substitute. The runbook includes
+reference queries and recovery behavior without requiring private builder scripts.
 Example re-saving and source-column reselection are observed workarounds, not
 universal requirements or fixes for every error. Recheck current support; never
 hide validation failures. M365 publication/access is a separate checkpoint.

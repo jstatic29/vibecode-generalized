@@ -59,6 +59,12 @@ If unable to resolve, hand off the saved operation and precise blocker.
 - Existing identities and outstanding operations located in private evidence.
 - Manual checkpoints still required, pending approvals and validation blockers.
 - Next exact acceptance check, expected baseline and success criteria.
+- For graph checks, follow the [graph query handoff](../../../../docs/graph-query-handoff.md):
+  retain ontology-to-graph association, version/materialization reference, approved
+  GQL/hash and bounds, HTTP/GQL statuses, typed results, continuation/error
+  receipts and SQL comparison provenance in private evidence. Distinguish a
+  saved SQL baseline from newly executed SQL and independent graph queries from
+  agent execution; preserve unknown remote outcomes after local timeouts.
 - Unverified claims explicitly excluded: publication, ontology use, graph execution,
   viewer access, writeback ownership, optional deployments or full readiness.
 

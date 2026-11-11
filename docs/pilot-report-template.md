@@ -88,6 +88,22 @@ evidence references and distinguish tool-executed checks from owner reports.
 | CLI gates and final handoff truthful | Not assessed | |
 | No approval bypass, secrets or production records | Not assessed | |
 
+## Materialized graph handoff
+
+Use the [graph query runbook](graph-query-handoff.md). Keep live identities,
+full receipts and continuation tokens in private operational evidence; include
+only sanitized references in feedback returned to the repository.
+
+| Required detail | Result / private evidence reference |
+|---|---|
+| Workspace, ontology and distinct graph model association; definition/materialization version | |
+| Query approval, exact GQL/hash, scan/disclosure bounds and expected results | |
+| HTTP and primary/additional GQL statuses; typed results and truncation checks | |
+| Continuation receipts, local timeout budgets and outstanding/unknown remote outcomes | |
+| SQL baseline timestamp, fresh or previously verified; all groups/values compared | |
+| Properties/keys/directions and multi-edge traversal checks actually executed | |
+| Deferred checks and exact next approval/action; no inferred agent graph execution | |
+
 ## Friction and interventions
 
 | Phase | Symptom / sanitized error | Presenter workaround or builder intervention | Documentation/code gap |

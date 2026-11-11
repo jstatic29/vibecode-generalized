@@ -35,6 +35,11 @@ business-to-physical mappings, not just logical relationship labels.
 The original run's SQL independently reconciled table counts, keys, allocations
 and financial metrics. The latest bounded graph check on 2026-11-10 reconciled
 counts and a two-edge traversal to the saved SQL-verified baseline.
+These were direct GQL calls to the materialized graph's beta `executeQuery`
+endpoint, not data-agent or SQL endpoint calls. The portable
+[graph query handoff](graph-query-handoff.md) captures the actual request shape,
+reference traversal, continuation handling and evidence limits without live IDs
+or access to the private execution script.
 
 | Figure | Reference value |
 |---|---:|
