@@ -79,14 +79,24 @@ envelopes, dependencies or runtime state from the reference builder.
 Open a new Copilot conversation rooted in this checkout and paste:
 
 > Use fabric-demo-companion and the presenter pilot guide. Read README.md,
-> AGENTS.md and docs/flexible-proposals.md first. Start a new synthetic,
-> second-industry demo from my public website, audience and high-level source
-> descriptions. Ask for missing inputs and verify required skills/tools before
-> writes. Research public pages, cite evidence, propose 2-3 use cases and
-> recommend a small deterministic model for my selection. Do not assume a schema
-> or relabel the finance/healthcare scenario. Exclude semantic model, Planning
-> and Fabric app. Keep explicit approval gates, use durable notebook jobs,
-> preserve evidence and stop at unsupported operations. Prepare pilot usage
+> AGENTS.md and docs/flexible-proposals.md first. Before generation, ask me to
+> choose between synthetic data and eligible existing data; do not make the
+> choice for me. Explain that synthetic data is generated for the demo, while
+> the existing-data path uses approved individual Lakehouse or Warehouse table
+> shortcuts, verified source read-only permissions, and bounded metadata and
+> aggregate assessment. Explain that the synthetic pilot covers ontology/graph
+> and agent, while the existing-data walkthrough is accepted only for its
+> SQL-only scope. Follow the selected path and do not mix modes in a run.
+>
+> Start a second-industry demo from my public website, audience and high-level
+> source descriptions. Ask for missing inputs and verify required skills/tools
+> before writes. Research public pages, cite evidence and propose 2-3 use cases.
+> For synthetic data, recommend a small deterministic model for my selection;
+> for existing data, use the approved readiness assessment to inform the model.
+> Do not assume a schema or relabel the finance/healthcare scenario. Exclude
+> semantic model, Planning and Fabric app from this pilot. Keep explicit approval
+> gates, use durable notebook jobs when applicable, preserve evidence and stop
+> at unsupported operations. Prepare pilot usage
 > tracking before work. Use pilot-copilot-usage against this session's own
 > native usage state at phase boundaries and handoff, saving private snapshots.
 > Capture Fabric CU measurements separately with their provenance, and never
