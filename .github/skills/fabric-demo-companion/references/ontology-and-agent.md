@@ -7,6 +7,15 @@ item. Recheck effective permissions and timestamped baselines before writes/
 publication; materialization can copy data and needs disclosure approval.
 Do not label existing data synthetic or invent unsupported keys/relationships.
 
+## Ontology proposal visual
+
+Before asking for ontology approval, and after any revision or readback, show the
+inventory visual defined in `docs/flexible-proposals.md` ("Required ontology
+proposal visual"): header counts, entity inventory with keys, properties and
+backing tables, and directional relationships. Label it `PROPOSED - not deployed`
+or `SAVED DEFINITION (date)`, mark estimated versus verified counts, and use
+`unknown` rather than guessing. It is a review aid and never closes a gate.
+
 ## Ontology authoring and native repair
 
 Load current `fabriciq-ontology-cli` authoring references before writes. The

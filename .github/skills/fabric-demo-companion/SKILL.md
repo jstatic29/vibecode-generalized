@@ -48,6 +48,8 @@ For the selected generation-2 ontology/graph flow, the sponsor may separately
 approve a reviewed public-API-assisted route with current definition/query docs.
 This is not a silent fallback or authority to bypass an owning skill's hard boundary;
 see the ontology/agent reference and presenter guide. Record conflicts explicitly.
+Show the ontology proposal visual (see the ontology/agent reference) whenever
+proposing, revising or reading back an ontology.
 Natural-language Power BI report questions belong to `fabriciq`; do not mistake
 that consumption skill for a data-agent authoring adapter. Do not launch Project
 Osmos merely because this demo includes Spark.

@@ -234,6 +234,53 @@ relationship reference, and update every rule's `ruleReferencedRelationship`
 to the new ontology name. Verify names, labels and rule references in readback
 before the final native binding checkpoint.
 
+### Required ontology proposal visual
+
+Whenever Copilot proposes or revises an ontology (design review, binding
+checkpoint, post-change readback), present this inventory visual in chat before
+asking for approval. Entity and relationship names are the approved business
+vocabulary; physical tables appear only as the backing source. The block below is
+a format example with invented names, not a template to copy.
+
+```text
+Workspace : <workspace>      Lakehouse : <lakehouse> (schema <schema>)
+Status    : PROPOSED - not deployed
+Entities  : 3     Relationships : 2     Bindings : 3 static (0 time-series)
+Properties: 14    Definition parts : <n or "unknown">
+
+ENTITY INVENTORY (3)
+   S   #  Entity        Key            Props  Static binding (rows)
+   --  -  ------------  -------------  -----  ---------------------------
+   +   1  Customer      CustomerId     4      dim_customer   (est. 120)
+   +   2  Order         OrderId        6      fact_order     (est. 900)
+   +   3  Product       ProductSku     4      dim_product    (est. 40)
+
+RELATIONSHIPS (2)
+   Order  -[ placedBy    ]->  Customer   backing: fact_order
+   Order  -[ containsItem ]-> Product    backing: fact_order
+```
+
+Rules:
+
+- Header: workspace, lakehouse and schema, entity/relationship/binding/property
+  counts and definition parts. Use `unknown` for anything not yet read back; never
+  invent a number.
+- Mark the status line `PROPOSED - not deployed` until readback of a saved
+  definition, then `SAVED DEFINITION (date)`. State that a saved definition is not
+  a live or graph-verified check. Mark row counts `est.` until a read-only SQL
+  count was run; label verified counts with their timestamp.
+- One inventory row per entity: business name, entity key property, property
+  count and backing table with row count. Every entity must have a key and a
+  binding; a missing one is shown as `MISSING`, not hidden.
+- Group relationships by source entity, one directional line each, with the
+  relationship name and its backing table. Names must be unique and read as
+  `entity -[ relationship ]-> entity`.
+- When revising an existing ontology, use the status column: `+` added,
+  `~` changed, `=` unchanged, `-` removed, plus a one-line reason for each change.
+- Emojis are optional presentation; keep ASCII-safe output for logs and evidence.
+- Derive every value from the approved scenario/contract or saved readback. The
+  visual is a review aid, not approval; it does not close any gate.
+
 For example, `Budget -> Budgeted Under -> Cost Category` and
 `Cost Posting -> Charged To -> Project` describe business meaning; a name such as
 `fact_budget_cost_category_id` describes an implementation detail. Confirm the
