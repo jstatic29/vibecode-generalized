@@ -27,6 +27,16 @@ not merely generated contracts. Do not spawn agents or workflows by default.
 4. Read only the relevant phase reference below; load the current installed
    specialist skill before acting. Creating this companion grants no Fabric
    write, runtime-test or publication permission.
+5. Follow `docs/presenter-pilot.md#prerequisite-checklist`: check local tools,
+   enabled plugins and skill capabilities before discovery; after data-mode/
+   target selection, independently verify Azure CLI and required MCP authentication
+   and target access. Optional connections are required only for selected phases.
+   Report passed/blocked/unverified/not-applicable with dated private evidence;
+   source-read-only permissions need separate evidence in existing mode.
+   Never treat tool availability as sign-in or authentication as permission.
+   Stop only the affected phase; do not initiate sign-in, install software or
+   substitute routes without approval. Recheck changed identities/targets/
+   connections and before the affected phase; do not reuse old pilot results.
 
 ## Phase routing
 

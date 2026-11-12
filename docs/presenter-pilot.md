@@ -42,6 +42,42 @@ Before customer-specific work, verify:
 | Usage accounting | Identify the Copilot usage source and a capacity owner who can provide pilot-filtered Fabric CU metrics; see usage tracking below |
 | Boundaries | No production records, credentials in files, copied reference state, unapproved writes or destructive cleanup |
 
+### Prerequisite checklist
+
+Run these read-only checks in two stages. Do not require a target just to check
+local tooling, or require optional-phase connections for the core pilot.
+
+| Stage | Check | Evidence |
+|---|---|---|
+| Before discovery | Installed/enabled Fabric plugins and discoverable specialist skills | Plugin versions and successful skill loading; inspect actual capabilities, especially generation-2 ontology authoring, not just names |
+| Before discovery | Local tools and Copilot host | Python/Git/Azure CLI versions, accelerator CLI availability, repository instructions and required file/shell/web tools |
+| Before discovery | Authentication and MCP availability | Current Azure account/tenant and Fabric token acquisition without displaying the token; discover required MCP tools. Tool discovery alone does not prove sign-in |
+| After data-mode/target selection | Azure CLI/REST target access | Permission-checked workspace discovery/readback, assigned capacity and its state; record required feature availability as verified or operator-attested |
+| After data-mode/target selection | SQL Endpoint MCP | Identity-only query against the selected endpoint: `SELECT DB_NAME() AS database_name, USER_NAME() AS database_user, SUSER_SNAME() AS execution_login;`. Verify endpoint/database and actual identity; do not read source records |
+| After data-mode/target selection | FabricIQ MCP, when needed | Authenticated artifact discovery using a relevant search term; this proves discovery access, not data-agent authoring/publication or access to every artifact |
+| After data-mode/target selection | Power BI modeling MCP, only for a requested semantic-model phase | Inspect connections and verify authenticated read access to the selected workspace/model. No connections is unverified, not proof of failed authentication; no selected model means defer the check |
+| Existing-data mode, before assessment | Effective source-read-only permissions | Separate owner evidence for every execution identity, including delegated owners; SQL identity or an admin connection does not prove read-only access. No write probe |
+
+Present a dated report with **passed, blocked, unverified or not applicable** for
+each check, its evidence, affected phase and remaining owner decision. Distinguish
+machine results from owner attestations. Availability is not authentication, and
+authentication is not permission. Azure CLI and each MCP can use different
+identities; test them independently rather than assuming shared sign-in.
+
+Use Azure CLI/REST for control-plane checks; the general Fabric MCP is not a
+prerequisite. Load the owning skill before calls and include its attribution
+header. Optional ODBC/app tooling is checked only if that route is selected.
+Do not initiate sign-in, install software, refresh models, run notebooks, or
+substitute unsupported execution routes automatically. Report a blocker and
+stop only the affected phase; retain the existing approval gates.
+
+Keep account identities, tenant/resource IDs and dated receipts in private
+operational evidence outside immutable generated artifacts, never portable docs.
+Never save tokens. Recheck after identity, target, plugin or connection changes
+and before the affected phase; a previous pilot's results are not reusable
+prerequisite approval. This checklist is Copilot-assisted, not a new automatic
+CLI preflight or gate-completion adapter.
+
 Load current specialists before their phases. A skill name alone does not prove
 API support. Some installations expose only legacy V1 ontology authoring:
 that is not a substitute for generation-2 TMDL. If the required specialist is
@@ -87,6 +123,13 @@ Open a new Copilot conversation rooted in this checkout and paste:
 > aggregate assessment. Explain that the synthetic pilot covers ontology/graph
 > and agent, while the existing-data walkthrough is accepted only for its
 > SQL-only scope. Follow the selected path and do not mix modes in a run.
+>
+> Follow the presenter guide's prerequisite checklist before execution. Check
+> tools, plugins and skill capabilities first; after I select the data path and
+> targets, verify authentication and target access independently for Azure CLI
+> and each required MCP. Report passed, blocked, unverified and not-applicable
+> checks, and stop only the affected phase. Do not initiate sign-in, install
+> software or switch execution routes without approval.
 >
 > Start a second-industry demo from my public website, audience and high-level
 > source descriptions. Ask for missing inputs and verify required skills/tools
