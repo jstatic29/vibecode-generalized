@@ -27,7 +27,9 @@ not merely generated contracts. Do not spawn agents or workflows by default.
 4. Read only the relevant phase reference below; load the current installed
    specialist skill before acting. Creating this companion grants no Fabric
    write, runtime-test or publication permission.
-5. Follow `docs/presenter-pilot.md#prerequisite-checklist`: check local tools,
+5. Follow `docs/presenter-pilot.md#prerequisite-checklist`: run
+   `python -m demo_accelerator check-prereqs`, then complete its pending host/
+   skill/MCP checks independently. Check local tools,
    enabled plugins and skill capabilities before discovery; after data-mode/
    target selection, independently verify Azure CLI and required MCP authentication
    and target access. Optional connections are required only for selected phases.
@@ -37,6 +39,10 @@ not merely generated contracts. Do not spawn agents or workflows by default.
    Stop only the affected phase; do not initiate sign-in, install software or
    substitute routes without approval. Recheck changed identities/targets/
    connections and before the affected phase; do not reuse old pilot results.
+   Keep saved prerequisite reports free of usernames, tenant/resource IDs,
+   tokens and raw command/MCP responses; record identity-match outcomes instead.
+   Exit code 0 means no CLI blocker, not full readiness. Use optional service
+   flags only when needed and pass `--workspace` only after target selection.
 
 ## Phase routing
 

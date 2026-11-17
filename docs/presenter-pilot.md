@@ -47,6 +47,36 @@ Before customer-specific work, verify:
 Run these read-only checks in two stages. Do not require a target just to check
 local tooling, or require optional-phase connections for the core pilot.
 
+Start with the repeatable CLI checks (no generated run required):
+
+```powershell
+python -m demo_accelerator check-prereqs
+# After choosing a data mode and an existing workspace:
+python -m demo_accelerator check-prereqs --data-mode synthetic --workspace "<selected workspace>"
+# Optional new sanitized report outside immutable run artifacts:
+python -m demo_accelerator check-prereqs --output .demo-runs\prereqs-001.json
+```
+
+The command checks local tools, structured Copilot plugin inventory where supported,
+Azure account availability and Fabric token acquisition. With `--workspace`, it
+also checks workspace visibility and active assigned capacity through Azure
+CLI/REST, using the existing adapter's host validation and skill header.
+Load the current Spark skill first for synthetic target checks, or OneLake
+guidance for existing mode. No general Fabric MCP is required.
+It never starts sign-in, installs software, writes to Fabric or changes gates.
+Exit code 1 means at least one check is blocked; 0 means no CLI blocker, **not**
+that all prerequisites passed. Pending host/MCP/permission checks remain explicit.
+Each subprocess has a 60-second timeout; workspace discovery can require multiple
+paginated calls. Reports are timestamped, do not overwrite existing files and
+contain no usernames, tenant/resource IDs, tokens or raw command output.
+
+Use `--data-mode existing-lakehouse` for that path. Add `--semantic-model`, `--app`
+or `--fabriciq` only when those phases/services are needed; FabricIQ is Power BI
+consumption, not a required data-agent authoring surface. Copilot completes the
+pending checks below independently using the current host's tools; the CLI does
+not authenticate to MCPs. Present the sanitized CLI report alongside dated
+host-check results with the same statuses, affected phase and actionable blocker.
+
 | Stage | Check | Evidence |
 |---|---|---|
 | Before discovery | Installed/enabled Fabric plugins and discoverable specialist skills | Plugin versions and successful skill loading; inspect actual capabilities, especially generation-2 ontology authoring, not just names |
@@ -71,12 +101,16 @@ Do not initiate sign-in, install software, refresh models, run notebooks, or
 substitute unsupported execution routes automatically. Report a blocker and
 stop only the affected phase; retain the existing approval gates.
 
-Keep account identities, tenant/resource IDs and dated receipts in private
-operational evidence outside immutable generated artifacts, never portable docs.
-Never save tokens. Recheck after identity, target, plugin or connection changes
+Keep reports outside immutable generated artifacts. For this prerequisite flow,
+record identity-match outcomes rather than usernames, and omit tenant/resource IDs,
+tokens and raw authentication/query output from saved reports. Do not copy
+identity-bearing MCP responses into them; host chat/authentication caches have
+their own retention outside these reports. This does not change the separately
+approved existing-data SQL runner's identity-bearing plans/receipts.
+Recheck after identity, target, plugin or connection changes
 and before the affected phase; a previous pilot's results are not reusable
-prerequisite approval. This checklist is Copilot-assisted, not a new automatic
-CLI preflight or gate-completion adapter.
+prerequisite approval. This is a hybrid CLI/Copilot checklist, not automatic MCP
+verification or a gate-completion adapter.
 
 Load current specialists before their phases. A skill name alone does not prove
 API support. Some installations expose only legacy V1 ontology authoring:
@@ -125,11 +159,14 @@ Open a new Copilot conversation rooted in this checkout and paste:
 > SQL-only scope. Follow the selected path and do not mix modes in a run.
 >
 > Follow the presenter guide's prerequisite checklist before execution. Check
-> tools, plugins and skill capabilities first; after I select the data path and
+> tools/plugins/Azure access with `python -m demo_accelerator check-prereqs` and
+> complete its pending skill and MCP checks in Chat. After I select the data path and
 > targets, verify authentication and target access independently for Azure CLI
 > and each required MCP. Report passed, blocked, unverified and not-applicable
 > checks, and stop only the affected phase. Do not initiate sign-in, install
-> software or switch execution routes without approval.
+> software or switch execution routes without approval. Keep saved prerequisite
+> reports free of usernames, tenant/resource IDs, tokens and raw authentication
+> output; record identity-match results instead.
 >
 > Start a second-industry demo from my public website, audience and high-level
 > source descriptions. Ask for missing inputs and verify required skills/tools

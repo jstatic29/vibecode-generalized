@@ -21,6 +21,14 @@ def parser():
                       help="Optional legacy regression example; omit for an industry-independent brief")
     init.add_argument("--output", required=True, type=Path)
     init.add_argument("--data-mode", choices=["synthetic", "existing-lakehouse"], default="synthetic")
+    prereqs = commands.add_parser(
+        "check-prereqs", help="Read-only tooling/Azure checks and pending Copilot checks; no run required")
+    prereqs.add_argument("--workspace", help="Optional explicitly selected existing workspace name")
+    prereqs.add_argument("--data-mode", choices=["synthetic", "existing-lakehouse"])
+    prereqs.add_argument("--semantic-model", action="store_true")
+    prereqs.add_argument("--app", action="store_true")
+    prereqs.add_argument("--fabriciq", action="store_true", help="Require Power BI consumption MCP checks")
+    prereqs.add_argument("--output", type=Path, help="Optional new sanitized JSON report; never overwritten")
     usage_template = commands.add_parser(
         "pilot-usage-template", help="Write a private usage worksheet; no network calls")
     usage_template.add_argument("--output", required=True, type=Path)
@@ -63,6 +71,15 @@ def parser():
 
 
 def execute(args):
+    if args.command == "check-prereqs":
+        from .prerequisites import check
+        result = check(args.workspace, args.data_mode, args.semantic_model, args.app, args.fabriciq)
+        if args.output:
+            args.output.parent.mkdir(parents=True, exist_ok=True)
+            with args.output.open("x", encoding="utf-8") as stream:
+                json.dump(result, stream, indent=2)
+                stream.write("\n")
+        return result
     if args.command in {"pilot-usage-template", "pilot-usage-report", "pilot-copilot-usage"}:
         from .pilot_usage import summarize, template
         if args.command == "pilot-copilot-usage":
@@ -198,4 +215,6 @@ def main(argv=None):
         print(f"ERROR: {exc}", file=sys.stderr)
         return 1
     print(json.dumps(result, indent=2, ensure_ascii=True))
+    if args.command == "check-prereqs" and result["blocked"]:
+        return 1
     return 0

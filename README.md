@@ -138,6 +138,14 @@ Python 3.11+ is sufficient for local preparation, with no third-party runtime pa
 Run commands from this repository's root. Optional installation:
 `python -m pip install -e .` exposes `fabric-demo`.
 
+Run `python -m demo_accelerator check-prereqs` for read-only tool/plugin/Azure
+checks and an explicit list of pending Copilot skill/MCP checks. After target
+selection, add `--workspace "<selected workspace>" --data-mode synthetic` (or
+`existing-lakehouse`). Optional `--output` writes a new sanitized JSON report.
+No sign-in, installation or Fabric mutation is initiated; exit code 0 does not
+mean MCP authentication or all prerequisites passed. See the
+[hybrid prerequisite checklist](docs/presenter-pilot.md#prerequisite-checklist).
+
 ```powershell
 python -m demo_accelerator init --output intake.json
 # Edit customer URL, audience, source descriptions, optional features and scope.
